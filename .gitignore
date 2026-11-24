@@ -3,17 +3,9 @@ __pycache__/
 .pytest_cache/
 *.pyc
 out/
+.plan/
 
 # API key（使用者本地提供，絕不進版控）
 .env
 
-# 真名冊的小名 sidecar（含真實姓名；範本 aliases.example.json 才進版控）
-aliases.json
 
-# 提示音不在本 repo：任何音檔與含姓名的 manifest 都不進版控
-sounds/**/*.wav
-sounds/zh/manifest.json
-sounds/zh/name-*.wav
-
-# 通話日誌與錄音（含個資；正式開發改用 Realtime STT）
-recordings/
