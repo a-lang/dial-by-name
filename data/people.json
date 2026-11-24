@@ -1,0 +1,555 @@
+{
+  "source_directory": "PBX Internal",
+  "departments": [
+    {
+      "dept_id": "sales",
+      "name": "業務部",
+      "aliases": [
+        "業務",
+        "Sales",
+        "銷售",
+        "業務處"
+      ]
+    },
+    {
+      "dept_id": "cs",
+      "name": "客服部",
+      "aliases": [
+        "客服",
+        "客戶服務",
+        "CS",
+        "客訴"
+      ]
+    },
+    {
+      "dept_id": "rd",
+      "name": "工程部",
+      "aliases": [
+        "工程",
+        "研發",
+        "技術部",
+        "RD",
+        "IT研發"
+      ]
+    },
+    {
+      "dept_id": "fin",
+      "name": "財務部",
+      "aliases": [
+        "財務",
+        "會計",
+        "Finance",
+        "出納"
+      ]
+    },
+    {
+      "dept_id": "wh",
+      "name": "倉儲部",
+      "aliases": [
+        "倉儲",
+        "倉庫",
+        "物流",
+        "WH"
+      ]
+    },
+    {
+      "dept_id": "adm",
+      "name": "行政部",
+      "aliases": [
+        "行政",
+        "總務",
+        "總機",
+        "Admin"
+      ]
+    },
+    {
+      "dept_id": "hr",
+      "name": "人資部",
+      "aliases": [
+        "人資",
+        "人事",
+        "HR"
+      ]
+    },
+    {
+      "dept_id": "it",
+      "name": "資訊部",
+      "aliases": [
+        "資訊",
+        "IT",
+        "MIS",
+        "網管"
+      ]
+    }
+  ],
+  "people": [
+    {
+      "pid": "u001",
+      "name": "王偉",
+      "directory": "PBX Internal",
+      "dept": "業務部",
+      "title": "業務經理",
+      "extension": "2101",
+      "aliases": [
+        "David Wang"
+      ],
+      "last_name": "王",
+      "first_name": "偉"
+    },
+    {
+      "pid": "u002",
+      "name": "汪偉",
+      "directory": "PBX Internal",
+      "dept": "客服部",
+      "title": "客服專員",
+      "extension": "2202",
+      "aliases": [
+        "Wayne Wang"
+      ],
+      "last_name": "汪",
+      "first_name": "偉"
+    },
+    {
+      "pid": "u003",
+      "name": "王小明",
+      "directory": "PBX Internal",
+      "dept": "業務部",
+      "title": "業務專員",
+      "extension": "2102",
+      "aliases": [],
+      "last_name": "王",
+      "first_name": "小明"
+    },
+    {
+      "pid": "u004",
+      "name": "張家豪",
+      "directory": "PBX Internal",
+      "dept": "工程部",
+      "title": "工程師",
+      "extension": "3101",
+      "aliases": [
+        "Howard Chang"
+      ],
+      "last_name": "張",
+      "first_name": "家豪"
+    },
+    {
+      "pid": "u005",
+      "name": "章家豪",
+      "directory": "PBX Internal",
+      "dept": "財務部",
+      "title": "會計",
+      "extension": "4101",
+      "aliases": [],
+      "last_name": "章",
+      "first_name": "家豪"
+    },
+    {
+      "pid": "u006",
+      "name": "林志明",
+      "directory": "PBX Internal",
+      "dept": "工程部",
+      "title": "技術主管",
+      "extension": "3102",
+      "aliases": [
+        "Jim Lin",
+        "阿明"
+      ],
+      "last_name": "林",
+      "first_name": "志明"
+    },
+    {
+      "pid": "u007",
+      "name": "凌志明",
+      "directory": "PBX Internal",
+      "dept": "倉儲部",
+      "title": "倉管",
+      "extension": "5101",
+      "aliases": [],
+      "last_name": "凌",
+      "first_name": "志明"
+    },
+    {
+      "pid": "u008",
+      "name": "陳美玲",
+      "directory": "PBX Internal",
+      "dept": "客服部",
+      "title": "客服主管",
+      "extension": "2201",
+      "aliases": [
+        "Mei Chen",
+        "小美"
+      ],
+      "last_name": "陳",
+      "first_name": "美玲"
+    },
+    {
+      "pid": "u009",
+      "name": "程美玲",
+      "directory": "PBX Internal",
+      "dept": "行政部",
+      "title": "行政專員",
+      "extension": "6101",
+      "aliases": [
+        "筱美"
+      ],
+      "last_name": "程",
+      "first_name": "美玲"
+    },
+    {
+      "pid": "u010",
+      "name": "李佳蓉",
+      "directory": "PBX Internal",
+      "dept": "業務部",
+      "title": "業務專員",
+      "extension": "2103",
+      "aliases": [],
+      "last_name": "李",
+      "first_name": "佳蓉"
+    },
+    {
+      "pid": "u011",
+      "name": "李佳容",
+      "directory": "PBX Internal",
+      "dept": "人資部",
+      "title": "人資專員",
+      "extension": "6201",
+      "aliases": [],
+      "last_name": "李",
+      "first_name": "佳容"
+    },
+    {
+      "pid": "u012",
+      "name": "黃俊傑",
+      "directory": "PBX Internal",
+      "dept": "工程部",
+      "title": "資深工程師",
+      "extension": "3103",
+      "aliases": [
+        "Jack Huang"
+      ],
+      "last_name": "黃",
+      "first_name": "俊傑"
+    },
+    {
+      "pid": "u013",
+      "name": "吳雅婷",
+      "directory": "PBX Internal",
+      "dept": "財務部",
+      "title": "財務經理",
+      "extension": "4102",
+      "aliases": [
+        "Tina Wu"
+      ],
+      "last_name": "吳",
+      "first_name": "雅婷"
+    },
+    {
+      "pid": "u014",
+      "name": "周志豪",
+      "directory": "PBX Internal",
+      "dept": "倉儲部",
+      "title": "倉儲主管",
+      "extension": "5102",
+      "aliases": [],
+      "last_name": "周",
+      "first_name": "志豪"
+    },
+    {
+      "pid": "u015",
+      "name": "徐佩珊",
+      "directory": "PBX Internal",
+      "dept": "人資部",
+      "title": "人資經理",
+      "extension": "6202",
+      "aliases": [
+        "Sandy Hsu"
+      ],
+      "last_name": "徐",
+      "first_name": "佩珊"
+    },
+    {
+      "pid": "u016",
+      "name": "鄭博文",
+      "directory": "PBX Internal",
+      "dept": "工程部",
+      "title": "工程師",
+      "extension": "3104",
+      "aliases": [],
+      "last_name": "鄭",
+      "first_name": "博文"
+    },
+    {
+      "pid": "u017",
+      "name": "謝宛真",
+      "directory": "PBX Internal",
+      "dept": "客服部",
+      "title": "客服專員",
+      "extension": "2203",
+      "aliases": [],
+      "last_name": "謝",
+      "first_name": "宛真"
+    },
+    {
+      "pid": "u018",
+      "name": "洪世昌",
+      "directory": "PBX Internal",
+      "dept": "業務部",
+      "title": "業務副理",
+      "extension": "2104",
+      "aliases": [],
+      "last_name": "洪",
+      "first_name": "世昌"
+    },
+    {
+      "pid": "u019",
+      "name": "邱建宏",
+      "directory": "PBX Internal",
+      "dept": "資訊部",
+      "title": "MIS工程師",
+      "extension": "7101",
+      "aliases": [],
+      "last_name": "邱",
+      "first_name": "建宏"
+    },
+    {
+      "pid": "u020",
+      "name": "曾雅雯",
+      "directory": "PBX Internal",
+      "dept": "財務部",
+      "title": "會計",
+      "extension": "4103",
+      "aliases": [],
+      "last_name": "曾",
+      "first_name": "雅雯"
+    },
+    {
+      "pid": "u021",
+      "name": "蔡宗翰",
+      "directory": "PBX Internal",
+      "dept": "業務部",
+      "title": "業務專員",
+      "extension": "2105",
+      "aliases": [],
+      "last_name": "蔡",
+      "first_name": "宗翰"
+    },
+    {
+      "pid": "u022",
+      "name": "楊淑芬",
+      "directory": "PBX Internal",
+      "dept": "行政部",
+      "title": "總機",
+      "extension": "6102",
+      "aliases": [],
+      "last_name": "楊",
+      "first_name": "淑芬"
+    },
+    {
+      "pid": "u023",
+      "name": "許志豪",
+      "directory": "PBX Internal",
+      "dept": "工程部",
+      "title": "工程師",
+      "extension": "3105",
+      "aliases": [],
+      "last_name": "許",
+      "first_name": "志豪"
+    },
+    {
+      "pid": "u024",
+      "name": "郭佳穎",
+      "directory": "PBX Internal",
+      "dept": "人資部",
+      "title": "招募專員",
+      "extension": "6203",
+      "aliases": [],
+      "last_name": "郭",
+      "first_name": "佳穎"
+    },
+    {
+      "pid": "u025",
+      "name": "高文彬",
+      "directory": "PBX Internal",
+      "dept": "倉儲部",
+      "title": "送貨專員",
+      "extension": "5103",
+      "aliases": [],
+      "last_name": "高",
+      "first_name": "文彬"
+    },
+    {
+      "pid": "u026",
+      "name": "潘怡君",
+      "directory": "PBX Internal",
+      "dept": "客服部",
+      "title": "客服專員",
+      "extension": "2204",
+      "aliases": [],
+      "last_name": "潘",
+      "first_name": "怡君"
+    },
+    {
+      "pid": "u027",
+      "name": "賴俊宏",
+      "directory": "PBX Internal",
+      "dept": "資訊部",
+      "title": "系統工程師",
+      "extension": "7102",
+      "aliases": [],
+      "last_name": "賴",
+      "first_name": "俊宏"
+    },
+    {
+      "pid": "u028",
+      "name": "江美惠",
+      "directory": "PBX Internal",
+      "dept": "財務部",
+      "title": "出納",
+      "extension": "4104",
+      "aliases": [],
+      "last_name": "江",
+      "first_name": "美惠"
+    },
+    {
+      "pid": "u029",
+      "name": "蕭文傑",
+      "directory": "PBX Internal",
+      "dept": "業務部",
+      "title": "業務經理",
+      "extension": "2106",
+      "aliases": [],
+      "last_name": "蕭",
+      "first_name": "文傑"
+    },
+    {
+      "pid": "u030",
+      "name": "蘇郁婷",
+      "directory": "PBX Internal",
+      "dept": "行政部",
+      "title": "行政助理",
+      "extension": "6103",
+      "aliases": [],
+      "last_name": "蘇",
+      "first_name": "郁婷"
+    },
+    {
+      "pid": "u031",
+      "name": "陳艾美",
+      "directory": "PBX Internal",
+      "dept": "業務部",
+      "title": "國外業務",
+      "extension": "2107",
+      "aliases": [
+        "Amy Chen",
+        "Amy"
+      ],
+      "last_name": "陳",
+      "first_name": "艾美"
+    },
+    {
+      "pid": "u032",
+      "name": "王凱文",
+      "directory": "PBX Internal",
+      "dept": "工程部",
+      "title": "工程師",
+      "extension": "3106",
+      "aliases": [
+        "Kevin Wang",
+        "Kevin"
+      ],
+      "last_name": "王",
+      "first_name": "凱文"
+    },
+    {
+      "pid": "u033",
+      "name": "鍾明軒",
+      "directory": "PBX Internal",
+      "dept": "工程部",
+      "title": "工程師",
+      "extension": "3107",
+      "aliases": [],
+      "last_name": "鍾",
+      "first_name": "明軒"
+    },
+    {
+      "pid": "u034",
+      "name": "范曉琪",
+      "directory": "PBX Internal",
+      "dept": "客服部",
+      "title": "客服專員",
+      "extension": "2205",
+      "aliases": [
+        "Vicky Fan"
+      ],
+      "last_name": "范",
+      "first_name": "曉琪"
+    },
+    {
+      "pid": "u035",
+      "name": "簡志偉",
+      "directory": "PBX Internal",
+      "dept": "倉儲部",
+      "title": "倉管",
+      "extension": "5104",
+      "aliases": [],
+      "last_name": "簡",
+      "first_name": "志偉"
+    },
+    {
+      "pid": "u036",
+      "name": "巫佳玲",
+      "directory": "PBX Internal",
+      "dept": "行政部",
+      "title": "行政專員",
+      "extension": "6104",
+      "aliases": [],
+      "last_name": "巫",
+      "first_name": "佳玲"
+    },
+    {
+      "pid": "u037",
+      "name": "涂文豪",
+      "directory": "PBX Internal",
+      "dept": "工程部",
+      "title": "工程師",
+      "extension": "3108",
+      "aliases": [],
+      "last_name": "涂",
+      "first_name": "文豪"
+    },
+    {
+      "pid": "u038",
+      "name": "龔柏勳",
+      "directory": "PBX Internal",
+      "dept": "資訊部",
+      "title": "網管",
+      "extension": "7103",
+      "aliases": [],
+      "last_name": "龔",
+      "first_name": "柏勳"
+    },
+    {
+      "pid": "u039",
+      "name": "莊雅涵",
+      "directory": "PBX Internal",
+      "dept": "人資部",
+      "title": "人資專員",
+      "extension": "6204",
+      "aliases": [],
+      "last_name": "莊",
+      "first_name": "雅涵"
+    },
+    {
+      "pid": "u040",
+      "name": "古庭瑋",
+      "directory": "PBX Internal",
+      "dept": "財務部",
+      "title": "會計",
+      "extension": "4105",
+      "aliases": [],
+      "last_name": "古",
+      "first_name": "庭瑋"
+    }
+  ]
+}

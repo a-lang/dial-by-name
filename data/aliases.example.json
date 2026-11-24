@@ -1,0 +1,8 @@
+{
+  "_comment": "範本（假資料）。正式檔是 data/aliases.json：不入版控。source_directory 必須逐字等於 userman_directories.name；user_id 是 userman_users.id（字串），不是分機——分機會被重複指派。稀疏登記：只列需要小名／英文名的人。",
+  "source_directory": "PBX Internal Directory",
+  "aliases": [
+    {"user_id": "12", "aliases": ["小美", "阿美"]},
+    {"user_id": "37", "aliases": ["David", "David Wang"]}
+  ]
+}

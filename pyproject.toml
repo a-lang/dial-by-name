@@ -1,0 +1,23 @@
+[project]
+name = "dial-by-name"
+version = "0.1.0"
+description = "語音撥號（dial-by-name）：姓名 → 分機比對、同音消歧與索引的參考實作（目前為中文）"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+    "pypinyin>=0.53",
+    "rapidfuzz>=3.9",
+    "opencc-python-reimplemented>=0.1.7",
+    "httpx>=0.27",
+    "pymysql>=1.2.4",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

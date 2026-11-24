@@ -1,0 +1,343 @@
+# sha256 6b3b92d507e04d344a737b95c1dc2e32bb184ada89852696c6c1048a81faedc8
+世昌	given-name-unregistered	fallback	alias-not-found	
+业务的李佳容	homophone-dept-sc	route	direct:confident	
+业务的汪伟	homophone-dept-sc	route	direct:confident	
+业务的汪小明	homophone-dept-sc	route	direct:confident	
+业务的程艾美	homophone-dept-sc	route	direct:confident	
+业务的萧文杰	homophone-dept-sc	route	direct:confident	
+人事命令什麼時候公布	garbage	ask	dept-scoped-ask	fallback
+人资的李佳蓉	homophone-dept-sc	route	direct:confident	
+今天天氣怎麼樣	garbage	hangup	no-intent	
+仓储的林志明	homophone-dept-sc	route	direct:confident	
+仓储的简志玮	homophone-dept-sc	route	direct:confident	
+你們有停車場嗎	garbage	hangup	no-intent	
+你好我要找凌志明麻烦一下	filler-sc	ask	homophone-sibling-ask	fallback
+你好我要找古庭玮麻烦一下	filler-sc	route	direct:confident	
+你好我要找吴雅婷麻烦一下	filler-sc	route	direct:confident	
+你好我要找周志豪麻烦一下	filler-sc	route	direct:confident	
+你好我要找巫佳玲麻烦一下	filler-sc	route	direct:confident	
+你好我要找庄雅涵麻烦一下	filler-sc	route	direct:confident	
+你好我要找张家豪麻烦一下	filler-sc	ask	homophone-sibling-ask	fallback
+你好我要找徐佩珊麻烦一下	filler-sc	route	direct:confident	
+你好我要找曾雅雯麻烦一下	filler-sc	route	direct:confident	
+你好我要找李佳容麻烦一下	filler-sc	ask	homophone-sibling-ask	fallback
+你好我要找李佳蓉麻烦一下	filler-sc	ask	homophone-sibling-ask	fallback
+你好我要找杨淑芬麻烦一下	filler-sc	route	direct:confident	
+你好我要找林志明麻烦一下	filler-sc	ask	homophone-sibling-ask	fallback
+你好我要找江美惠麻烦一下	filler-sc	route	direct:confident	
+你好我要找汪伟麻烦一下	filler-sc	ask	homophone-sibling-ask	fallback
+你好我要找洪世昌麻烦一下	filler-sc	route	direct:confident	
+你好我要找涂文豪麻烦一下	filler-sc	route	direct:confident	
+你好我要找潘怡君麻烦一下	filler-sc	route	direct:confident	
+你好我要找王伟麻烦一下	filler-sc	ask	homophone-sibling-ask	fallback
+你好我要找王凯文麻烦一下	filler-sc	route	direct:confident	
+你好我要找王小明麻烦一下	filler-sc	route	direct:confident	
+你好我要找程美玲麻烦一下	filler-sc	ask	homophone-sibling-ask	fallback
+你好我要找章家豪麻烦一下	filler-sc	ask	homophone-sibling-ask	fallback
+你好我要找简志伟麻烦一下	filler-sc	route	direct:confident	
+你好我要找苏郁婷麻烦一下	filler-sc	route	direct:confident	
+你好我要找范晓琪麻烦一下	filler-sc	route	direct:confident	
+你好我要找萧文杰麻烦一下	filler-sc	route	direct:confident	
+你好我要找蔡宗翰麻烦一下	filler-sc	route	direct:confident	
+你好我要找许志豪麻烦一下	filler-sc	route	direct:confident	
+你好我要找谢宛真麻烦一下	filler-sc	route	direct:confident	
+你好我要找赖俊宏麻烦一下	filler-sc	route	direct:confident	
+你好我要找邱建宏麻烦一下	filler-sc	route	direct:confident	
+你好我要找郑博文麻烦一下	filler-sc	route	direct:confident	
+你好我要找郭佳颖麻烦一下	filler-sc	route	direct:confident	
+你好我要找钟明轩麻烦一下	filler-sc	route	direct:confident	
+你好我要找陈美玲麻烦一下	filler-sc	ask	homophone-sibling-ask	fallback
+你好我要找陈艾美麻烦一下	filler-sc	route	direct:confident	
+你好我要找高文彬麻烦一下	filler-sc	route	direct:confident	
+你好我要找黄俊杰麻烦一下	filler-sc	route	single-candidate	
+你好我要找龚柏勋麻烦一下	filler-sc	route	direct:confident	
+佩珊	given-name-unregistered	fallback	alias-not-found	
+佳容	given-name-unregistered	fallback	alias-not-found	
+佳玲	given-name-unregistered	fallback	alias-not-found	
+佳蓉	given-name-unregistered	fallback	alias-not-found	
+佳颖	given-name-unregistered	fallback	alias-not-found	
+俊宏	given-name-unregistered	fallback	alias-not-found	
+俊杰	given-name-unregistered	fallback	alias-not-found	
+倉庫那邊有人嗎	garbage	ask	dept-scoped-ask	fallback
+凌先生	surname-only-sc	fallback	surname-only	
+凌志明	exact-sc	ask	homophone-sibling-ask	fallback
+凌志明	homophone-sc	ask	homophone-sibling-ask	fallback
+凯文	given-name-unregistered	fallback	alias-not-found	
+博文	given-name-unregistered	fallback	alias-not-found	
+古先生	surname-only-sc	fallback	surname-only	
+古庭玮	exact-sc	route	direct:confident	
+古庭瑋	exact-tc	route	direct:confident	
+吳雅婷	exact-tc	route	direct:confident	
+吴先生	surname-only-sc	fallback	surname-only	
+吴婷	drop-char-sc	route	single-candidate	
+吴雅婷	exact-sc	route	direct:confident	
+周先生	surname-only-sc	fallback	surname-only	
+周志豪	exact-sc	route	direct:confident	
+宗翰	given-name-unregistered	fallback	alias-not-found	
+宛真	given-name-unregistered	fallback	alias-not-found	
+客服態度很差我要投訴	garbage	ask	dept-scoped-ask	fallback
+客服的王伟	homophone-dept-sc	route	direct:confident	
+客服的程美玲	homophone-dept-sc	route	direct:confident	
+家豪	given-name-unregistered	fallback	alias-not-found	
+家豪	given-name-unregistered	fallback	alias-not-found	
+小明	given-name-unregistered	fallback	alias-not-found	
+工程的凌志明	homophone-dept-sc	route	direct:confident	
+工程的汪凯文	homophone-dept-sc	route	direct:confident	
+工程的章家豪	homophone-dept-sc	route	direct:confident	
+工程的黄俊杰	homophone-dept-sc	route	direct:confident	
+巫佳伶	homophone-sc	route	single-candidate	
+巫佳玲	exact-sc	route	direct:confident	
+巫先生	surname-only-sc	fallback	surname-only	
+帮我接业务	dept-only-sc	route_dept	dept-only	
+帮我接业务	dept-only-sc	route_dept	dept-only	
+帮我接业务	dept-only-sc	route_dept	dept-only	
+帮我接业务	dept-only-sc	route_dept	dept-only	
+帮我接业务	dept-only-sc	route_dept	dept-only	
+帮我接业务	dept-only-sc	route_dept	dept-only	
+帮我接业务	dept-only-sc	route_dept	dept-only	
+帮我接人资	dept-only-sc	route_dept	dept-only	
+帮我接人资	dept-only-sc	route_dept	dept-only	
+帮我接人资	dept-only-sc	route_dept	dept-only	
+帮我接人资	dept-only-sc	route_dept	dept-only	
+帮我接仓储	dept-only-sc	route_dept	dept-only	
+帮我接仓储	dept-only-sc	route_dept	dept-only	
+帮我接仓储	dept-only-sc	route_dept	dept-only	
+帮我接仓储	dept-only-sc	route_dept	dept-only	
+帮我接客服	dept-only-sc	route_dept	dept-only	
+帮我接客服	dept-only-sc	route_dept	dept-only	
+帮我接客服	dept-only-sc	route_dept	dept-only	
+帮我接客服	dept-only-sc	route_dept	dept-only	
+帮我接客服	dept-only-sc	route_dept	dept-only	
+帮我接工程	dept-only-sc	route_dept	dept-only	
+帮我接工程	dept-only-sc	route_dept	dept-only	
+帮我接工程	dept-only-sc	route_dept	dept-only	
+帮我接工程	dept-only-sc	route_dept	dept-only	
+帮我接工程	dept-only-sc	route_dept	dept-only	
+帮我接工程	dept-only-sc	route_dept	dept-only	
+帮我接工程	dept-only-sc	route_dept	dept-only	
+帮我接工程	dept-only-sc	route_dept	dept-only	
+帮我接行政	dept-only-sc	route_dept	dept-only	
+帮我接行政	dept-only-sc	route_dept	dept-only	
+帮我接行政	dept-only-sc	route_dept	dept-only	
+帮我接行政	dept-only-sc	route_dept	dept-only	
+帮我接财务	dept-only-sc	route_dept	dept-only	
+帮我接财务	dept-only-sc	route_dept	dept-only	
+帮我接财务	dept-only-sc	route_dept	dept-only	
+帮我接财务	dept-only-sc	route_dept	dept-only	
+帮我接财务	dept-only-sc	route_dept	dept-only	
+帮我接资讯	dept-only-sc	route_dept	dept-only	
+帮我接资讯	dept-only-sc	route_dept	dept-only	
+帮我接资讯	dept-only-sc	route_dept	dept-only	
+幫我查一下訂單	garbage	hangup	no-intent	
+庄先生	surname-only-sc	fallback	surname-only	
+庄雅涵	exact-sc	route	direct:confident	
+庭玮	given-name-unregistered	fallback	alias-not-found	
+建宏	given-name-unregistered	fallback	alias-not-found	
+张先生	surname-only-sc	fallback	surname-only	
+张家豪	exact-sc	ask	homophone-sibling-ask	fallback
+张家豪	homophone-sc	ask	homophone-sibling-ask	fallback
+张豪	drop-char-sc	fallback	incomplete-name	
+張家豪	exact-tc	ask	homophone-sibling-ask	fallback
+徐佩珊	exact-sc	route	direct:confident	
+徐先生	surname-only-sc	fallback	surname-only	
+徐珊	drop-char-sc	route	single-candidate	
+志伟	given-name-unregistered	fallback	alias-not-found	
+志明	given-name-unregistered	fallback	alias-not-found	
+志明	given-name-unregistered	fallback	alias-not-found	
+志豪	given-name-unregistered	fallback	alias-not-found	
+志豪	given-name-unregistered	fallback	alias-not-found	
+怡君	given-name-unregistered	fallback	alias-not-found	
+我想應徵工作	garbage	hangup	no-intent	
+我想找Amy Chen	english	route	direct:confident	
+我想找David Wang	english	route	direct:confident	
+我想找Howard Chang	english	route	direct:confident	
+我想找Jack Huang	english	route	direct:confident	
+我想找Jim Lin	english	route	direct:confident	
+我想找Kevin Wang	english	route	direct:confident	
+我想找Mei Chen	english	route	direct:confident	
+我想找Sandy Hsu	english	route	direct:confident	
+我想找Tina Wu	english	route	direct:confident	
+我想找Vicky Fan	english	route	direct:confident	
+我想找Wayne Wang	english	route	direct:confident	
+我找那個陳董	nickname-trap	fallback	surname-only	
+我的網路壞了	garbage	hangup	no-intent	
+我要問發票的事	garbage	hangup	no-intent	
+我要應徵工程師	garbage	hangup	no-intent	
+我要找业务部的李先生	dept+surname-sc	fallback	surname-only	
+我要找业务部的洪先生	dept+surname-sc	fallback	surname-only	
+我要找业务部的王先生	dept+surname-sc	fallback	surname-only	
+我要找业务部的王先生	dept+surname-sc	fallback	surname-only	
+我要找业务部的萧先生	dept+surname-sc	fallback	surname-only	
+我要找业务部的蔡先生	dept+surname-sc	fallback	surname-only	
+我要找业务部的陈先生	dept+surname-sc	fallback	surname-only	
+我要找人资部的庄先生	dept+surname-sc	fallback	surname-only	
+我要找人资部的徐先生	dept+surname-sc	fallback	surname-only	
+我要找人资部的李先生	dept+surname-sc	fallback	surname-only	
+我要找人资部的郭先生	dept+surname-sc	fallback	surname-only	
+我要找仓储部的凌先生	dept+surname-sc	fallback	surname-only	
+我要找仓储部的周先生	dept+surname-sc	fallback	surname-only	
+我要找仓储部的简先生	dept+surname-sc	fallback	surname-only	
+我要找仓储部的高先生	dept+surname-sc	fallback	surname-only	
+我要找客服部的汪先生	dept+surname-sc	fallback	surname-only	
+我要找客服部的潘先生	dept+surname-sc	fallback	surname-only	
+我要找客服部的范先生	dept+surname-sc	fallback	surname-only	
+我要找客服部的谢先生	dept+surname-sc	fallback	surname-only	
+我要找客服部的陈先生	dept+surname-sc	fallback	surname-only	
+我要找工程部的张先生	dept+surname-sc	fallback	surname-only	
+我要找工程部的林先生	dept+surname-sc	fallback	surname-only	
+我要找工程部的涂先生	dept+surname-sc	fallback	surname-only	
+我要找工程部的王先生	dept+surname-sc	fallback	surname-only	
+我要找工程部的许先生	dept+surname-sc	fallback	surname-only	
+我要找工程部的郑先生	dept+surname-sc	fallback	surname-only	
+我要找工程部的钟先生	dept+surname-sc	fallback	surname-only	
+我要找工程部的黄先生	dept+surname-sc	fallback	surname-only	
+我要找王伯伯	nickname-trap	fallback	surname-only	
+我要找行政部的巫先生	dept+surname-sc	fallback	surname-only	
+我要找行政部的杨先生	dept+surname-sc	fallback	surname-only	
+我要找行政部的程先生	dept+surname-sc	fallback	surname-only	
+我要找行政部的苏先生	dept+surname-sc	fallback	surname-only	
+我要找财务部的古先生	dept+surname-sc	fallback	surname-only	
+我要找财务部的吴先生	dept+surname-sc	fallback	surname-only	
+我要找财务部的曾先生	dept+surname-sc	fallback	surname-only	
+我要找财务部的江先生	dept+surname-sc	fallback	surname-only	
+我要找财务部的章先生	dept+surname-sc	fallback	surname-only	
+我要找资讯部的赖先生	dept+surname-sc	fallback	surname-only	
+我要找资讯部的邱先生	dept+surname-sc	fallback	surname-only	
+我要找资讯部的龚先生	dept+surname-sc	fallback	surname-only	
+我要訂便當	garbage	hangup	no-intent	
+我要談業務合作	garbage	ask	dept-scoped-ask	fallback
+文彬	given-name-unregistered	fallback	alias-not-found	
+文杰	given-name-unregistered	fallback	alias-not-found	
+文豪	given-name-unregistered	fallback	alias-not-found	
+明轩	given-name-unregistered	fallback	alias-not-found	
+晓琪	given-name-unregistered	fallback	alias-not-found	
+曾先生	surname-only-sc	fallback	surname-only	
+曾雅雯	exact-sc	route	direct:confident	
+李佳容	exact-sc	ask	homophone-sibling-ask	fallback
+李佳容	homophone-sc	ask	homophone-sibling-ask	fallback
+李佳蓉	exact-sc	ask	homophone-sibling-ask	fallback
+李佳蓉	homophone-sc	ask	homophone-sibling-ask	fallback
+李先生	surname-only-sc	fallback	surname-only	
+李先生	surname-only-sc	fallback	surname-only	
+李容	drop-char-sc	fallback	incomplete-name	
+李蓉	drop-char-sc	fallback	incomplete-name	
+杨先生	surname-only-sc	fallback	surname-only	
+杨淑芬	exact-sc	route	direct:confident	
+杨芬	drop-char-sc	route	single-candidate	
+林先生	surname-only-sc	fallback	surname-only	
+林志明	exact-sc	ask	homophone-sibling-ask	fallback
+林志明	homophone-sc	ask	homophone-sibling-ask	fallback
+林明	drop-char-sc	fallback	incomplete-name	
+柏勋	given-name-unregistered	fallback	alias-not-found	
+楊淑芬	exact-tc	route	direct:confident	
+江先生	surname-only-sc	fallback	surname-only	
+江媄惠	homophone-sc	route	single-candidate	
+江惠	drop-char-sc	route	single-candidate	
+江美惠	exact-sc	route	direct:confident	
+汪伟	exact-sc	ask	homophone-sibling-ask	fallback
+汪伟	homophone-sc	ask	homophone-sibling-ask	fallback
+汪偉	exact-tc	ask	homophone-sibling-ask	fallback
+汪先生	surname-only-sc	fallback	surname-only	
+汪凯文	homophone-sc	route	single-candidate	
+汪小明	homophone-sc	route	single-candidate	
+洪世昌	exact-sc	route	direct:confident	
+洪先生	surname-only-sc	fallback	surname-only	
+涂先生	surname-only-sc	fallback	surname-only	
+涂文豪	exact-sc	route	direct:confident	
+涂豪	drop-char-sc	fallback	incomplete-name	
+淑芬	given-name-unregistered	fallback	alias-not-found	
+潘先生	surname-only-sc	fallback	surname-only	
+潘君	drop-char-sc	route	single-candidate	
+潘怡君	exact-sc	route	direct:confident	
+王伟	exact-sc	ask	homophone-sibling-ask	fallback
+王伟	homophone-sc	ask	homophone-sibling-ask	fallback
+王偉	exact-tc	ask	homophone-sibling-ask	fallback
+王先生	surname-only-sc	fallback	surname-only	
+王先生	surname-only-sc	fallback	surname-only	
+王先生	surname-only-sc	fallback	surname-only	
+王凯文	exact-sc	route	direct:confident	
+王凱文	exact-tc	route	direct:confident	
+王小明	exact-sc	route	direct:confident	
+程先生	surname-only-sc	fallback	surname-only	
+程美玲	exact-sc	ask	homophone-sibling-ask	fallback
+程美玲	homophone-sc	ask	homophone-sibling-ask	fallback
+程艾美	homophone-sc	route	single-candidate	
+章先生	surname-only-sc	fallback	surname-only	
+章家豪	exact-sc	ask	homophone-sibling-ask	fallback
+章家豪	homophone-sc	ask	homophone-sibling-ask	fallback
+章豪	drop-char-sc	fallback	incomplete-name	
+简先生	surname-only-sc	fallback	surname-only	
+简志伟	exact-sc	route	direct:confident	
+简志玮	homophone-sc	route	single-candidate	
+簡志偉	exact-tc	route	direct:confident	
+美惠	given-name-unregistered	fallback	alias-not-found	
+美玲	given-name-unregistered	fallback	alias-not-found	
+美玲	given-name-unregistered	fallback	alias-not-found	
+艾美	given-name-unregistered	fallback	alias-not-found	
+苏先生	surname-only-sc	fallback	surname-only	
+苏婷	drop-char-sc	fallback	incomplete-name	
+苏郁婷	exact-sc	route	direct:confident	
+范先生	surname-only-sc	fallback	surname-only	
+范晓琪	exact-sc	route	direct:confident	
+范曉琪	exact-tc	route	direct:confident	
+莊雅涵	exact-tc	route	direct:confident	
+萧先生	surname-only-sc	fallback	surname-only	
+萧文杰	exact-sc	route	direct:confident	
+萧文杰	homophone-sc	route	direct:confident	
+萧杰	drop-char-sc	fallback	incomplete-name	
+蔡先生	surname-only-sc	fallback	surname-only	
+蔡宗翰	exact-sc	route	direct:confident	
+蕭文傑	exact-tc	route	direct:confident	
+蘇郁婷	exact-tc	route	direct:confident	
+行政的巫佳伶	homophone-dept-sc	route	direct:confident	
+行政的陈美玲	homophone-dept-sc	route	direct:confident	
+許志豪	exact-tc	route	direct:confident	
+請問你們地址在哪裡	garbage	hangup	no-intent	
+請問幾點下班	garbage	hangup	no-intent	
+請問廁所在哪	garbage	hangup	no-intent	
+謝宛真	exact-tc	route	direct:confident	
+许先生	surname-only-sc	fallback	surname-only	
+许志豪	exact-sc	route	direct:confident	
+谢先生	surname-only-sc	fallback	surname-only	
+谢宛真	exact-sc	route	direct:confident	
+財務報表什麼時候出來	garbage	ask	dept-scoped-ask	fallback
+賴俊宏	exact-tc	route	direct:confident	
+财务的张家豪	homophone-dept-sc	route	direct:confident	
+财务的江媄惠	homophone-dept-sc	route	direct:confident	
+赖俊宏	exact-sc	route	direct:confident	
+赖先生	surname-only-sc	fallback	surname-only	
+邱先生	surname-only-sc	fallback	surname-only	
+邱宏	drop-char-sc	fallback	incomplete-name	
+邱建宏	exact-sc	route	direct:confident	
+郁婷	given-name-unregistered	fallback	alias-not-found	
+郑先生	surname-only-sc	fallback	surname-only	
+郑博文	exact-sc	route	direct:confident	
+郑文	drop-char-sc	route	single-candidate	
+郭佳穎	exact-tc	route	direct:confident	
+郭佳颖	exact-sc	route	direct:confident	
+郭先生	surname-only-sc	fallback	surname-only	
+鄭博文	exact-tc	route	direct:confident	
+鍾明軒	exact-tc	route	direct:confident	
+钟先生	surname-only-sc	fallback	surname-only	
+钟明轩	exact-sc	route	direct:confident	
+陈先生	surname-only-sc	fallback	surname-only	
+陈先生	surname-only-sc	fallback	surname-only	
+陈美玲	exact-sc	ask	homophone-sibling-ask	fallback
+陈美玲	homophone-sc	ask	homophone-sibling-ask	fallback
+陈艾美	exact-sc	route	direct:confident	
+陳美玲	exact-tc	ask	homophone-sibling-ask	fallback
+陳艾美	exact-tc	route	direct:confident	
+雅婷	given-name-unregistered	fallback	alias-not-found	
+雅涵	given-name-unregistered	fallback	alias-not-found	
+雅雯	given-name-unregistered	fallback	alias-not-found	
+高先生	surname-only-sc	fallback	surname-only	
+高彬	drop-char-sc	route	single-candidate	
+高文彬	exact-sc	route	direct:confident	
+黃俊傑	exact-tc	route	direct:confident	
+黄俊杰	exact-sc	route	single-candidate	
+黄俊杰	homophone-sc	route	single-candidate	
+黄先生	surname-only-sc	fallback	surname-only	
+黄杰	drop-char-sc	fallback	incomplete-name	
+龔柏勳	exact-tc	route	direct:confident	
+龚先生	surname-only-sc	fallback	surname-only	
+龚柏勋	exact-sc	route	direct:confident	

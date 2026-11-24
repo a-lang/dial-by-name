@@ -1,0 +1,20 @@
+{
+  "n": 342,
+  "silent_wrong_rate": 0.0,
+  "top1_easy_sc": 1.0,
+  "top1_easy_tc": 1.0,
+  "sc_vs_tc_gap": 0.0,
+  "recall3_hard": 1.0,
+  "top1_homophone": 0.778,
+  "homophone_dept_top1": 1.0,
+  "dept_acc": 1.0,
+  "clarify_rate_hard": 0.99,
+  "clarify_rate_easy": 0.23,
+  "garbage_false_match": 0.0,
+  "nickname_trap_clarify": 1.0,
+  "garbage_false_route": 0.0,
+  "dept_route_recall": 1.0,
+  "no_requery_rate": 1.0,
+  "third_ask_rate": 0.0,
+  "alias_not_found_rate": 1.0
+}

@@ -1,0 +1,195 @@
+{
+  "version": 1,
+  "calls": [
+    {
+      "id": "exact-sc",
+      "kind": "exact-sc",
+      "mode": "auto",
+      "turns": ["我要找鄭博文"],
+      "truth": {"truth_text": "我要找鄭博文", "expect_pid": "u016", "kind": "exact-sc", "dept_expect": null},
+      "expect": {"action": "route", "reason": "direct:confident", "target": "3104", "scores": [1.0]}
+    },
+    {
+      "id": "homophone-dept-carry",
+      "kind": "homophone-sc",
+      "mode": "auto",
+      "turns": ["我要找汪偉", "客服部"],
+      "truth": {"truth_text": "我要找汪偉", "expect_pid": "u002", "kind": "homophone-sc", "dept_expect": "客服部"},
+      "expect": {"action": "route", "reason": "direct:confident", "target": "2202", "scores": [1.0]}
+    },
+    {
+      "id": "homophone-dept-sc",
+      "kind": "homophone-dept-sc",
+      "mode": "auto",
+      "turns": ["業務部的汪偉"],
+      "truth": {"truth_text": "業務部的汪偉", "expect_pid": "u001", "kind": "homophone-dept-sc", "dept_expect": "業務部"},
+      "expect": {"action": "route", "reason": "direct:confident", "target": "2101", "scores": [0.947]}
+    },
+    {
+      "id": "drop-char-sc",
+      "kind": "drop-char-sc",
+      "mode": "auto",
+      "turns": ["張豪"],
+      "truth": {"truth_text": "張豪", "expect_pid": "u004", "kind": "drop-char-sc", "dept_expect": null},
+      "expect": {"action": "fallback", "reason": "incomplete-name", "target": null, "scores": [0.82]}
+    },
+    {
+      "id": "surname-only-sc",
+      "kind": "surname-only-sc",
+      "mode": "auto",
+      "turns": ["王先生"],
+      "truth": {"truth_text": "王先生", "expect_pid": null, "kind": "surname-only-sc", "dept_expect": null},
+      "expect": {"action": "fallback", "reason": "surname-only", "target": null, "scores": [0.62]}
+    },
+    {
+      "id": "given-name-only-sc",
+      "kind": "given-name-only-sc",
+      "mode": "auto",
+      "turns": ["美玲"],
+      "truth": {"truth_text": "美玲", "expect_pid": null, "kind": "given-name-only-sc", "dept_expect": null},
+      "expect": {"action": "fallback", "reason": "alias-not-found", "target": null, "scores": []}
+    },
+    {
+      "id": "dept-only-sc",
+      "kind": "dept-only-sc",
+      "mode": "auto",
+      "turns": ["幫我接業務部"],
+      "truth": {"truth_text": "幫我接業務部", "expect_pid": null, "kind": "dept-only-sc", "dept_expect": "業務部"},
+      "expect": {"action": "route_dept", "reason": "dept-only", "target": "sales", "scores": []}
+    },
+    {
+      "id": "dept-surname-sc",
+      "kind": "dept+surname-sc",
+      "mode": "auto",
+      "turns": ["業務部的王先生"],
+      "truth": {"truth_text": "業務部的王先生", "expect_pid": null, "kind": "dept+surname-sc", "dept_expect": "業務部"},
+      "expect": {"action": "fallback", "reason": "surname-only", "target": null, "scores": [0.72]}
+    },
+    {
+      "id": "filler-sc",
+      "kind": "filler-sc",
+      "mode": "auto",
+      "turns": ["你好我要找業務部的王偉麻煩一下"],
+      "truth": {"truth_text": "你好我要找業務部的王偉麻煩一下", "expect_pid": "u001", "kind": "filler-sc", "dept_expect": null},
+      "expect": {"action": "route", "reason": "direct:confident", "target": "2101", "scores": [1.0]}
+    },
+    {
+      "id": "garbage-lunch",
+      "kind": "garbage",
+      "mode": "auto",
+      "turns": ["你們便當訂了沒"],
+      "truth": {"truth_text": "你們便當訂了沒", "expect_pid": null, "kind": "garbage", "dept_expect": null},
+      "expect": {"action": "hangup", "reason": "no-intent", "target": null, "scores": []}
+    },
+    {
+      "id": "alias-unique",
+      "kind": "alias-unique",
+      "mode": "auto",
+      "turns": ["阿明"],
+      "truth": {"truth_text": "阿明", "expect_pid": null, "kind": "alias-unique", "dept_expect": null},
+      "expect": {"action": "route", "reason": "direct:confident", "target": "3102", "scores": [0.95]}
+    },
+    {
+      "id": "alias-homophone-cs",
+      "kind": "alias-homophone",
+      "mode": "auto",
+      "turns": ["小美", "客服部"],
+      "truth": {"truth_text": "小美", "expect_pid": null, "kind": "alias-homophone", "dept_expect": null},
+      "expect": {"action": "route", "reason": "direct:confident", "target": "2201", "scores": [0.95]}
+    },
+    {
+      "id": "alias-homophone-adm",
+      "kind": "alias-homophone",
+      "mode": "auto",
+      "turns": ["小美", "行政部"],
+      "truth": {"truth_text": "小美", "expect_pid": null, "kind": "alias-homophone", "dept_expect": null},
+      "expect": {"action": "route", "reason": "direct:confident", "target": "6101", "scores": [0.95]}
+    },
+    {
+      "id": "alias-floor",
+      "kind": "alias-floor",
+      "mode": "auto",
+      "turns": ["小米"],
+      "truth": {"truth_text": "小米", "expect_pid": null, "kind": "alias-floor", "dept_expect": null},
+      "expect": {"action": "fallback", "reason": "low-confidence-single", "target": null, "scores": [0.51]}
+    },
+    {
+      "id": "same-name-homophone-sc",
+      "kind": "same-name-homophone-sc",
+      "mode": "auto",
+      "turns": ["我要找李佳蓉", "業務部"],
+      "truth": {"truth_text": "我要找李佳蓉", "expect_pid": "u010", "kind": "same-name-homophone-sc", "dept_expect": null},
+      "expect": {"action": "route", "reason": "direct:confident", "target": "2103", "scores": [1.0]}
+    },
+    {
+      "id": "homophone-second-turn",
+      "kind": "homophone-sc",
+      "mode": "auto",
+      "turns": ["資訊部王偉", "王偉"],
+      "truth": {"truth_text": "資訊部王偉", "expect_pid": "u001,u002", "kind": "homophone-sc", "dept_expect": null},
+      "expect": {"action": "fallback", "reason": "clarify-exhausted", "target": null, "scores": [0.92]}
+    },
+    {
+      "id": "single-candidate-floor-sc",
+      "kind": "single-candidate-floor-sc",
+      "mode": "auto",
+      "turns": ["我要找古廷瑋"],
+      "truth": {"truth_text": "我要找古廷瑋", "expect_pid": "u040", "kind": "single-candidate-floor-sc", "dept_expect": null},
+      "expect": {"action": "route", "reason": "single-candidate", "target": "4105", "scores": [0.88]},
+      "note": "0.70–0.92 唯一候選直轉是政策未定案；update 前須重議。"
+    },
+    {
+      "id": "dept-answer-wrong-sc",
+      "kind": "dept-answer-wrong-sc",
+      "mode": "auto",
+      "turns": ["我要找陳美玲", "人事部"],
+      "truth": {"truth_text": "我要找陳美玲", "expect_pid": "u008", "kind": "dept-answer-wrong-sc", "dept_expect": null},
+      "expect": {"action": "fallback", "reason": "no-candidate-giveup", "target": null, "scores": [1.0]}
+    },
+    {
+      "id": "silence",
+      "kind": "silence",
+      "mode": "manual",
+      "turns": [],
+      "truth": null,
+      "expect": {"action": "hangup", "reason": "stt-empty", "target": null},
+      "note": "兩次不出聲：決策層兩輪皆 retry/stt-empty，再見掛線由 dialplan 的 DBN_TRIES 決定（docs/dialplan.md §3.9）。"
+    },
+    {
+      "id": "dtmf-operator",
+      "kind": "dtmf-0",
+      "mode": "manual",
+      "turns": [],
+      "truth": null,
+      "expect": {"action": "operator", "reason": "dtmf-0", "target": null}
+    }
+  ],
+  "l1_only": [
+    {
+      "id": "second-turn-empty-retry",
+      "kind": "stt-empty",
+      "mode": "auto",
+      "turns": ["我要找汪偉", ""],
+      "truth": null,
+      "expect": {"action": "retry", "reason": "stt-empty", "target": null, "scores": [1.0]}
+    },
+    {
+      "id": "two-empty-turns-hangup",
+      "kind": "stt-empty",
+      "mode": "auto",
+      "turns": ["", ""],
+      "truth": null,
+      "expect": {"action": "retry", "reason": "stt-empty", "target": null, "scores": []},
+      "note": "handle_turn 兩輪都回 retry/stt-empty；goodbye 掛線是 dialplan DBN_TRIES 的行為，不在決策層（docs/dialplan.md §3.9）。"
+    },
+    {
+      "id": "stt-debris-dept-ask",
+      "kind": "dept-scoped-ask",
+      "mode": "auto",
+      "turns": ["报街业务部"],
+      "truth": null,
+      "expect": {"action": "ask", "reason": "dept-scoped-ask", "target": null, "scores": []},
+      "note": "實撥 #7 的 STT 殘骸：部門（業務部）正確、殘留「報街」不在噪音表、0 候選；舊規則 no-intent 掛線，2026-11-19 方案 C 改為部門限定追問。"
+    }
+  ]
+}

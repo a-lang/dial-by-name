@@ -1,0 +1,82 @@
+[
+  {
+    "dept_id": "sales",
+    "name": "業務部",
+    "aliases": [
+      "業務",
+      "Sales",
+      "銷售",
+      "業務處"
+    ]
+  },
+  {
+    "dept_id": "cs",
+    "name": "客服部",
+    "aliases": [
+      "客服",
+      "客戶服務",
+      "CS",
+      "客訴"
+    ]
+  },
+  {
+    "dept_id": "rd",
+    "name": "工程部",
+    "aliases": [
+      "工程",
+      "研發",
+      "技術部",
+      "RD",
+      "IT研發"
+    ]
+  },
+  {
+    "dept_id": "fin",
+    "name": "財務部",
+    "aliases": [
+      "財務",
+      "會計",
+      "Finance",
+      "出納"
+    ]
+  },
+  {
+    "dept_id": "wh",
+    "name": "倉儲部",
+    "aliases": [
+      "倉儲",
+      "倉庫",
+      "物流",
+      "WH"
+    ]
+  },
+  {
+    "dept_id": "adm",
+    "name": "行政部",
+    "aliases": [
+      "行政",
+      "總務",
+      "總機",
+      "Admin"
+    ]
+  },
+  {
+    "dept_id": "hr",
+    "name": "人資部",
+    "aliases": [
+      "人資",
+      "人事",
+      "HR"
+    ]
+  },
+  {
+    "dept_id": "it",
+    "name": "資訊部",
+    "aliases": [
+      "資訊",
+      "IT",
+      "MIS",
+      "網管"
+    ]
+  }
+]
