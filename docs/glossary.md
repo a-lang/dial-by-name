@@ -2,8 +2,7 @@
 
 > 角色：本檔是「名詞、欄位、列舉值、常數」的唯一來源；跨檔只指向、不複製。
 
-每個結構的每個欄位、每個列舉字串代表什麼。**所有列舉值都是從程式碼 grep 出來的，
-不是憑印象寫的。**
+每個結構的每個欄位、每個列舉字串代表什麼。**列舉值以程式碼為準，不要憑印象加值。**
 
 ---
 
@@ -175,7 +174,8 @@
 > （`q-dept-who` 待錄，2026-11-19 加入）：
 > `welcome`、`processing`、`retry`、`q-say-full-name`、`q-which-dept`、`q-operator`、
 > `transferring`、`to-operator`、`not-found`、`goodbye`、`dept-<dept_id>`、`q-dept-who`。
-> **如何啟用**（參數在哪、程式碼怎麼傳、驗收檢查）見 [`README.md` §7.3](../README.md)。
+> **分支現況**（`disclose_names=True` 需要的四支固定句未實作、`agi_server.py` 沒有旗標）見
+> [`docs/design.md`](design.md) §7.2 與 [`README.md`](../README.md) 的「音檔」章。
 
 | 路徑 | 內容 |
 |---|---|

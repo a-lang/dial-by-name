@@ -1,6 +1,6 @@
 # AGENTS.md — dial-by-name（語音撥號）
 
-> 給**接手執行的 agent** 看的簡報。看完這一頁 + 指到的文件，就能動手而不踩雷。
+> 給**接手執行的 agent** 的入門脈絡：結構、契約、地雷；細節在 §2 指到的文件。
 > 產品說明在 `README.md`；設計與理由在 `docs/design.md`；版本變更在 `CHANGELOG.md`。
 
 ## 1. 這是什麼
@@ -20,10 +20,10 @@ FreePBX／Asterisk 的「說姓名 → 轉分機」參考實作（Python）。�
 | 想知道 | 讀 |
 |---|---|
 | 為什麼這樣設計、指標怎麼算、門檻為何是這些值 | `docs/design.md` |
-| 產品定位、quickstart、架構、量測 | `README.md` |
+| 產品定位、部署主線（quickstart）、服務維運、架構、量測 | `README.md` |
 | 欄位、列舉值、常數 | `docs/glossary.md` |
 | I/O 對映與 Decision → PBX | `docs/io-mapping.md` |
-| dialplan 部署、手動驗收、人員異動 SOP | `docs/dialplan.md` |
+| dialplan 片段、`DBN_*` 變數、失敗分派、按鍵語意、貼上與冒煙；部署主線在 README | `docs/dialplan.md` |
 | 20 通劇本協議與判定 | `docs/calls.md` |
 | 下一步 | `ROADMAP.md` |
 | 這個公開版的來源 | `docs/provenance.md` |
@@ -44,7 +44,7 @@ eval.py               342 題指標 + 門檻掃描（argparse；--transcripts/--
 trace.py              單句除錯 CLI（有 argparse）
 demo.py               9 個通話狀態展示
 stt_batch.py          STT 冒煙測試／離線重播（keyterms A/B）
-docs/dialplan.md      FreePBX dialplan 片段與部署／手動驗收清單
+docs/dialplan.md      dialplan 片段、`DBN_*` 變數、電話層失敗分派
 docs/calls.md         20 通劇本的撥號協議與人工判定（表格由 `scripts/calls.py table` 產生）
 scripts/check_sounds.py 檢查 19 個提示音（檔名 ASCII、8k/mono/16-bit）
 scripts/check_aliases.py 唯讀檢查 aliases.json（孤兒／重複／空值／控制字元；非零退出碼）
@@ -140,4 +140,5 @@ uv run pytest -q
 - **不要把 key 寫進程式碼或版控**；本機 shell 或 PBX 的 `.env`（systemd `EnvironmentFile`）可以，
   檔案權限 600、不入版控。
 - 文件與程式要同步：改行為就改 `README`／`docs/design.md`，並在 `CHANGELOG.md` 記一筆。
+- **文件指令引用的每個路徑／檔案，必須由更早的步驟產生或明確標注前提；不得憑空出現**。
 - 交付時附上**實際執行輸出**（不是「應該會過」）。

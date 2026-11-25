@@ -2,7 +2,7 @@
 
 > 角色：本檔是「JSONL 欄位、`DBN_*` 變數、Decision→PBX 對映（含 STT 錯誤分類 auth/ws）」的唯一來源；跨檔只指向、不複製。
 
-這份文件只回答一件事：**什麼進去、什麼出來、在哪一層發生**。所有數值都是
+I/O 契約只回答一件事：**什麼進去、什麼出來、在哪一層發生**。所有數值都是
 `data/people.json`（40 人）實際跑出來的，可用 `uv run eval.py` 重現。
 
 ---
@@ -82,7 +82,7 @@ Decision(action, target, label, reason, speech: list[str], confidence, options)
 事件層送 `auth_error`（HTTP 已 101），程式記 `stream.error=ws`／`stt_status=ws`，
 `stream.detail` 含 `auth_error`；握手層 401／403 或缺少 `ELEVENLABS_API_KEY` 才記 `auth`。
 兩者行為相同＝`fallback` → 總機，差別只在 JSONL 的 `stream.error`／`stream.detail`。
-`docs/dialplan.md` §3.9 有行為面摘要並指向本節。
+`docs/dialplan.md` §3.9 另有行為面摘要。
 
 ---
 
@@ -96,7 +96,7 @@ Decision(action, target, label, reason, speech: list[str], confidence, options)
 
 ---
 
-## 5. 產生這份對映表時修掉的三個問題
+## 5. 實作期間修掉的問題
 
 1. **無限遞迴**：`_search()` 用物件 identity（`candidates_pool is not people`）判斷要不要回退全掃，
    但部門限縮每次都會產生新 list → 永遠判定「需要回退」→ 遞迴直到爆掉。

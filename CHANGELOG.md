@@ -20,6 +20,12 @@
 
 ### Changed
 
+- **文件重構**：README 收斂為唯一部署主線（`git clone` 部署樹＋目錄權限／`.env`／`aliases.json`／
+  音檔／dialplan／啟動／冒煙依序成鏈）、`docs/dialplan.md` 只留 dialplan 本體（片段、`DBN_*`、
+  按鍵語意、失敗分派）、移除 PoC 驗收清單；人員異動與故障演練移到 README「服務管理與開機自啟」。
+  部署以 asterisk 帳號直接執行（免 sudo；`fwconsole` 與 systemd 安裝除外）；開發流程指令以
+  `AGENTS.md` §4 為單一來源。
+  部署主線改為部署主機單一視角、新增先期條件、目錄／帳號改「建議＋條件」；開發流程獨立成章。
 - **STT 改邊錄旁路（Realtime）**：dialplan 只新增三行（`start` AGI、`MixMonitor(,r(...))`、
   無條件 `StopMixMonitor`），`Record(...,4,10,...)` 與 beep／靜音／`#`／按 0 語意不變。
 - **401／403 改落總機**（原 PoC 為 `hangup`）：系統故障必須落到人。

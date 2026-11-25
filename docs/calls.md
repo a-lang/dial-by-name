@@ -2,12 +2,12 @@
 
 > 角色：本檔是「20 通劇本協議與判準（合成冊場次）」的唯一來源；跨檔只指向、不複製。
 
-> 機器判定在 `data/call_script.json`（單一來源）；這份文件是**人**照著撥、照著判的協議。
+> 機器判定在 `data/call_script.json`（單一來源）；**人**照著撥、照著判。
 > 表格由 `uv run scripts/calls.py table` 產生，`tests/test_call_script.py::test_calls_md_table_in_sync`
 > 會斷言它與 JSON 一致。
 > 電話層安裝與手動驗收：`docs/dialplan.md` §4。
 
-## 1. 這份文件是什麼
+## 1. 回歸三層
 
 回歸測試分三層（設計理由見 `docs/design.md` §回歸三層）：
 
@@ -210,5 +210,4 @@
    uv run eval.py --calls out/calls/test-YYYYMMDD --truth recordings/truth.csv --out-suffix _calls
    ```
 
-每次實撥的結果與漂移說明，記進 `CHANGELOG.md` 的 Unreleased 段落（或你自己的評測紀錄），
-本文件只保留協議本身。
+每次實撥的結果與漂移說明，記進 `CHANGELOG.md` 的 Unreleased 段落（或你自己的評測紀錄）。

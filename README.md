@@ -1,6 +1,6 @@
 # dial-by-name：說姓名 → 轉分機（中文姓名的同音消歧參考實作）
 
-> 角色：本檔是「從零到撥通的主線順序、服務啟停（手動＝正式＋systemd 選用）與本機開發工具」的唯一來源；跨檔只指向、不複製。
+> 角色：本檔是「部署主線與先期條件、服務啟停與維運」的唯一來源；跨檔只指向、不複製。
 
 FreePBX／Asterisk 用的「姓名 → 分機」比對層。來電者說出名字，系統撥接到對應分機，
 **不播報號碼、不念姓名**。
@@ -15,50 +15,213 @@ FreePBX／Asterisk 用的「姓名 → 分機」比對層。來電者說出名�
 
 ## 文件地圖
 
-| 想知道 | 讀 |
-|---|---|
-| 從零到能撥通（主線順序） | 本檔「快速開始」 |
-| PBX 部署、音檔、驗收、人員異動 | `docs/dialplan.md` |
-| 設計理由、門檻依據 | `docs/design.md` |
-| 名詞、欄位、常數 | `docs/glossary.md` |
-| JSONL／`DBN_*`／決策→dialplan 對映 | `docs/io-mapping.md` |
-| 20 通劇本協議 | `docs/calls.md` |
-| 公開版來源 | `docs/provenance.md` |
+| 想知道                                         | 讀                                                 |
+|-----------------------------------------------|---------------------------------------------------|
+| 部署主線與先期條件（從零到能撥通、更新、維運） | 本檔「先期條件」「部署主線」「服務管理與開機自啟」 |
+| 開發流程（測試、指標、除錯）                   | `AGENTS.md` §4                                     |
+| dialplan 片段、`DBN_*`、電話層失敗分派         | `docs/dialplan.md`                                 |
+| 設計理由、門檻依據                             | `docs/design.md`                                   |
+| 名詞、欄位、常數                               | `docs/glossary.md`                                 |
+| JSONL／`DBN_*`／決策→dialplan 對映             | `docs/io-mapping.md`                               |
+| 20 通劇本協議                                  | `docs/calls.md`                                    |
+| 公開版來源                                     | `docs/provenance.md`                               |
 
 ---
 
-## 快速開始：從零到撥通
+## 先期條件
 
-主線只有順序，細節都在指到的章節；沒綠的決策層不要接電話。
+開工前，部署主機上這九項要先成立。缺哪一項，對應那一步就會失敗——不是「先做，之後再補」。
 
-1. `uv sync` — 建立本機環境（依 pyproject＋uv.lock）。
-2. `uv run pytest -q && uv run eval.py` — L0／L1 與 342 題指標先綠，沒綠別碰電話。
-3. 部署樹 rsync 到 PBX（不含 `.venv`／`out`／`.env`／`recordings`）→ `docs/dialplan.md` §1
-4. 建 `recordings/`、`out/calls/` 並做權限 probe → `docs/dialplan.md` §1
-5. 提示音 19 支放上 `/var/lib/asterisk/sounds/dbn/zh/` → `docs/dialplan.md` §1
-6. `.env`（`ELEVENLABS_API_KEY` 等；600）→ `docs/dialplan.md` §1.1
-7. 貼 `[dbn-main]`／`[dbn-play-speech]` dialplan＋reload → `docs/dialplan.md` §2
-8. `scripts/agi.sh start`＋金絲雀驗證 → 本檔「服務管理與開機自啟」
-9. 冒煙一通：先跑 §3.8 的 STT／決策管線檢查，再以 Local channel 撥入 `dbn-main` 演練 → `docs/dialplan.md` §3.8
+| # | 條件 | 說明 |
+|---|---|---|
+| 1 | FreePBX＋Asterisk 22+ | dialplan 貼 `extensions_custom.conf`；名冊走 FreePBX userman（`AGI_PBX_DB=1`＋`AGI_SOURCE_DIRECTORY`） |
+| 2 | `git`＋`uv` | `git --version && uv --version`。缺 `uv`：`curl -LsSf https://astral.sh/uv/install.sh \| sh`（裝完重開 shell）；`uv` 只用來建部署樹的 `.venv` |
+| 3 | 服務帳號 | **建議** `asterisk`（與 Asterisk 寫檔同帳號）；專用帳號是**可選**，代價見下節 |
+| 4 | 操作帳號＝`asterisk` | 部署主線全程以 asterisk 直接操作（`/var/lib/asterisk`、`/etc/asterisk` 本為其所有，不需 sudo）；FreePBX 管理指令（`fwconsole`）與補裝系統套件才需要 root |
+| 5 | 對外 443（WSS 到 `api.elevenlabs.io`） | 唯一外部依賴。連不出去＝每通都 `fallback` → **總機**（不是掛線） |
+| 6 | 本機 `127.0.0.1:4573` | Asterisk→AGI 走 loopback、僅本機；不必開防火牆，也不要對外 listen |
+| 7 | DB 唯讀存取 | `/etc/freepbx.conf` 可讀（建議 asterisk 帳號的預設路徑），或 `.env` 補齊 `DBN_MYSQL_*` 四鍵；兩邊都不成＝拒絕啟動 |
+| 8 | FreePBX 設定面 | `DBN_OPERATOR` 的落點（總機分機／ring group）、Inbound Route／Custom Destination；貼法見 `docs/dialplan.md` §2、§3.1–§3.2 |
+| 9 | `ELEVENLABS_API_KEY` | 只寫進部署樹的 `.env`（第 4 步），不進指令行、不進版控 |
 
-之後：20 通劇本照 `docs/calls.md` 撥與判；人員異動 SOP 在 `docs/dialplan.md` §3.5／§4。
+### 部署目錄與服務帳號（建議＋條件）
 
-### 本機工具
+**目錄：建議 `/var/lib/asterisk/dial-by-name`**——兩場真機實撥走的就是這條路徑。可以換，但三條要同時成立：
+
+1. 服務帳號對部署樹**可讀可執行**（`.venv/bin/python`、`dialname/`、`data/`、`scripts/`），對 `out/` 與 `recordings/` **可寫**；
+2. 不在 Asterisk／FreePBX 自管路徑（`sounds/`、`moh/`）底下——那兩棵 FreePBX 會重寫；
+3. `DBN_SOUND`／`DBN_OPERATOR` 等 dialplan 變數的地點對得上（換樹不影響音檔絕對路徑，但要自己確認）。
+
+**帳號：建議 `asterisk`**。與 Asterisk 同帳號寫檔＝`recordings/` 零權限工程（`Record()`／`MixMonitor()` 落的 wav，AGI 與 sweeper 直接可讀可刪），DB 走 `/etc/freepbx.conf` 也免設定。
+
+**可選：專用帳號**（例如 `dbn`）。隔離更好，代價三條：
+
+1. `recordings/` 要共享群組＋setgid（`sudo chgrp asterisk recordings && sudo chmod 2770 recordings`），否則 Asterisk 寫的 wav 服務刪不掉；
+2. `.env` **必須**補 `DBN_MYSQL_*` 四鍵（專用帳號讀不到 `/etc/freepbx.conf`）；
+3. 啟動改以該帳號登入（或 `sudo -u <帳號>`）；本檔預設全程以 asterisk 直接執行。
+
+---
+
+## 部署主線：從零到撥通
+
+全程在**部署主機**上、cwd 一律部署樹；每一步的產物就是後續步驟引用的路徑。
+決策層沒綠的版本不要接電話；開發端回歸（`uv run pytest -q`／`eval.py`）見 `AGENTS.md` §4。
+以下全程以 `asterisk` 帳號執行（`ssh asterisk@<pbx>`）；`/var/lib/asterisk`、`/etc/asterisk`
+本為 asterisk 所有，不需要 sudo。
+
+### 1. 部署樹：`git clone`
 
 ```bash
-uv sync                                        # 建立 .venv 並安裝依賴（依 pyproject.toml + uv.lock）
-uv run eval.py                                 # 342 題合成測資：16 項指標＋門檻掃描
-uv run trace.py "我要找業務部的王先生"          # 單句除錯：逐層中間值＋分數拆解＋決策
-uv run demo.py                                 # 9 個通話狀態 → 決策
-uv run pytest -q                               # L0 golden＋L1 劇本＋單元測試
-uv run scripts/calls.py check                  # 只跑 L1（18 通 auto＋3 個 l1_only）
+git clone <repo-url> /var/lib/asterisk/dial-by-name
+cd /var/lib/asterisk/dial-by-name
+git checkout <tag-or-commit>   # 選用：鎖版本，部署可重現
 ```
 
-不用手動 activate：`uv run` 會自動同步依賴。`requires-python = ">=3.10"`；
-主機沒有 3.10+ 時 uv 會自己抓一個。`out/`、`.venv/` 已在 `.gitignore`。
+- 目錄用建議值（理由與替代條件見「先期條件」）；部署樹由這一步產生，後續步驟的路徑都在樹內。
+  目標目錄必須**不存在或為空**（`git clone` 不進非空目錄）。
+- 樹屬於操作帳號（本帳號 clone）：服務直接讀寫樹內自有目錄，不需 `chown`。
+- 服務以這棵樹的 `.venv/bin/python` 執行；`scripts/agi.sh` 用腳本位置推算根目錄，不依賴 cwd。
 
-看網路上的東西之前不需要任何 key；**只有真的呼叫 STT 才需要 `ELEVENLABS_API_KEY`**
-（`.env`，權限 600、不入版控），userman 模式另外需要 `DBN_MYSQL_*` 四個唯讀連線變數。
+### 2. 依賴：`uv sync`
+
+```bash
+cd /var/lib/asterisk/dial-by-name
+uv sync     # 產部署樹的 .venv/（依 pyproject.toml + uv.lock；不入版控）
+```
+
+- 這棵 `.venv` 只給服務用；開發端的 `uv run …`（測試、指標）見 `AGENTS.md` §4，兩邊不共用。
+- `uv` 裝在 `~/.local/bin` 而 PATH 找不到時：`~/.local/bin/uv sync`（或先
+  `export PATH="$HOME/.local/bin:$PATH"`）。
+- 之後依賴若變（`pyproject.toml`／`uv.lock` 有動）→ 重跑這一步再 `restart`，見第 10 步。
+
+### 3. 執行目錄與權限
+
+```bash
+cd /var/lib/asterisk/dial-by-name
+mkdir -p recordings out/calls
+chmod -R 0770 recordings out
+touch recordings/.probe out/calls/.probe
+rm recordings/.probe out/calls/.probe
+```
+
+- Asterisk 的 `Record()`／`MixMonitor()` **不會自建目錄**：`recordings/` 不存在＝錄音失敗
+  （`RECORD_STATUS=ERROR` → `retry` → 掛線）。
+- `recordings/` 只放通話中的暫存 wav：走到 `result` 即刪，其餘由 sweeper 在 20 秒內清；
+  靜止時必須是空的（有殘檔＝sweeper 沒在跑）。
+- `out/calls/` 是 JSONL 落點（`AGI_LOGS` 預設）；`out/` 另有 `agi.log`／`agi.pid`／`agi.health.json`。
+- 權限 probe 兩個目錄都要過；`touch` 失敗＝服務寫不進去。
+- 服務帳號不是 `asterisk` 時：這一段改由 root 一次設定（`chown` 該帳號＋`recordings/` 共享群組／setgid，
+  見「先期條件」→「可選：專用帳號」）。
+
+### 4. `.env`
+
+```bash
+cd /var/lib/asterisk/dial-by-name
+tee .env >/dev/null <<'EOF'
+ELEVENLABS_API_KEY=
+AGI_PBX_DB=1
+AGI_SOURCE_DIRECTORY="Test Directory"
+DBN_MYSQL_HOST=127.0.0.1
+DBN_MYSQL_USER=dbn_ro
+DBN_MYSQL_PASS=
+DBN_MYSQL_DB=asterisk
+EOF
+chmod 600 .env
+```
+
+- repo 刻意不含 `.env`：金鑰不入版控。只寫 `KEY=value`，**不要加 `export`**（`scripts/agi.sh`
+  用 `set -a` 載入，值有空格要加引號）。
+- `AGI_PBX_DB=1`＋`AGI_SOURCE_DIRECTORY`（換成你的 userman 目錄名，值要加引號）＝正式名冊；
+  拿掉這兩行則退回 `data/people.json` 示範名冊（40 人，僅供離線開發）。
+- `DBN_MYSQL_*` 四鍵全有才用；缺任一 fallback `/etc/freepbx.conf`（需 asterisk 可讀），
+  兩邊都不齊或連線失敗 → 拒絕啟動。
+- 用專用帳號時：`.env` 的 owner 改該帳號，且 `DBN_MYSQL_*` 四鍵**必填**（讀不到 `/etc/freepbx.conf`）。
+
+### 5. `data/aliases.json`（userman 模式的小名 sidecar）
+
+```bash
+cp data/aliases.example.json data/aliases.json
+chmod 600 data/aliases.json
+```
+
+改成你的 `source_directory`（逐字等於 userman 目錄名）與 `user_id → 小名`。repo 刻意不含正式檔：
+含真名，隱私。稀疏登記即可；離職未刪的孤兒 `user_id` 會讓 reload 永遠失敗。
+
+### 6. 提示音 19 支 → `/var/lib/asterisk/sounds/dbn/zh/`
+
+音檔是這條主線**唯一的外部輸入**：repo 不含、也無法由前面的步驟生成——在**開發端**
+錄製或合成、用 `scripts/check_sounds.py` 驗格式，再傳上部署主機。
+
+```bash
+# 開發端先驗格式（8 kHz／mono／16-bit、檔名 ASCII）
+uv run scripts/check_sounds.py <你的音檔目錄>
+# 上傳（音檔不可能進 repo，只能用檔案傳輸）
+rsync -av <你的音檔目錄>/ asterisk@<pbx>:/var/lib/asterisk/sounds/dbn/zh/
+```
+
+repo 刻意不含音檔：真人錄音／TTS 資產的再散布條件另計，自行錄製或合成。
+**`dbn/` 這層必須與 dialplan 的 `DBN_SOUND` 逐字一致**：少一層＝`Playback` 全無聲、且沒有明顯報錯。
+
+### 7. dialplan：貼上與 reload
+
+`[dbn-main]`／`[dbn-play-speech]` 貼進 Admin → Config Edit → `extensions_custom.conf`，然後：
+
+```bash
+asterisk -rx 'dialplan reload'
+```
+
+（FreePBX GUI 貼上的話，按 GUI 的 Apply Config 亦可；`fwconsole` 需要 root，`asterisk -rx` 以
+asterisk 身分即可。）
+
+片段本文、逐行語意與 GUI 接入（Custom Destination／Inbound Route／內部分機測試）見
+`docs/dialplan.md` §2、§3.1–§3.4。**不要**放進 `[from-internal-custom]`：它永遠被 include 進
+`from-internal`，`exten => s` 會變成內部分機可撥。
+
+### 8. 啟動 FastAGI＋金絲雀
+
+```bash
+cd /var/lib/asterisk/dial-by-name
+scripts/agi.sh start
+tail -n 5 out/agi.log        # 必須有 roster: source=... people=N aliases=M departments=D
+```
+
+`people=N` 要對上名冊人數（userman 目錄的真實人數）。`scripts/agi.sh status` 另檢
+PID／4573／sweeper heartbeat；啟停、health 判定與人員異動見本檔「服務管理與開機自啟」。
+
+### 9. 冒煙一通
+
+先跑 `docs/dialplan.md` §3.8 的兩項檢查（STT 對外、決策管線，不必撥號），再用 Local channel
+撥 `s@dbn-main`；正式進線走 `docs/dialplan.md` §3.2–§3.3 的 Custom Destination／Inbound Route。
+判讀看 JSONL 的 `DBN_ACTION`／`reason`。
+
+之後：20 通劇本照 `docs/calls.md` 撥與判。
+
+### 10. 更新既有部署
+
+```bash
+cd /var/lib/asterisk/dial-by-name
+git pull
+scripts/agi.sh restart    # 改過程式碼／依賴／.env
+scripts/agi.sh reload     # 只改名冊（userman／aliases.json）
+```
+
+- 依賴有變（`pyproject.toml`／`uv.lock` 有動）→ **先重跑第 2 步**再 `restart`。
+  `.venv` 與 `uv.lock` 不一致時進程會 import 失敗，log 只看得到 traceback。
+- 只改 `aliases.json`／`departments.json` → `reload` 就夠（SIGHUP 原子重載名冊，進行中的 session 不重置）。
+
+既有 rsync 部署遷移（路徑不變，先讓位）：
+
+```bash
+mv /var/lib/asterisk/dial-by-name /var/lib/asterisk/dial-by-name-old
+git clone <repo-url> /var/lib/asterisk/dial-by-name
+cp -p /var/lib/asterisk/dial-by-name-old/.env /var/lib/asterisk/dial-by-name/
+cp -p /var/lib/asterisk/dial-by-name-old/data/aliases.json /var/lib/asterisk/dial-by-name/data/
+# 從第 2 步接到第 9 步（依賴同步不可省）；金絲雀確認後刪舊樹
+rm -rf /var/lib/asterisk/dial-by-name-old    # 不要動 dial-by-name-archive
+```
+
+舊樹只搬 `.env` 與 `aliases.json`（含金鑰與真名，不經 git）；`recordings/`／`out/` 由第 3 步重建，
+不搬。
 
 ---
 
@@ -72,7 +235,9 @@ uv run scripts/calls.py check                  # 只跑 L1（18 通 auto＋3 個
 ### 手動方式（正式模式）
 
 ```bash
-# 啟動／停止／重啟（.env 已固化 userman 設定：AGI_PBX_DB=1、AGI_SOURCE_DIRECTORY="Test Directory"）
+cd /var/lib/asterisk/dial-by-name
+
+# 啟動／停止／重啟（.env 已含 userman 設定：AGI_PBX_DB=1、AGI_SOURCE_DIRECTORY）
 scripts/agi.sh start
 scripts/agi.sh restart       # 改程式碼、換 AGI_LOGS、改 .env 後用
 scripts/agi.sh reload        # SIGHUP：原子重載名冊（userman／aliases.json 異動後用；不換程式碼）
@@ -88,7 +253,7 @@ AGI_LOGS=out/calls/test-YYYYMMDD scripts/agi.sh restart
 每次啟動／重啟後的金絲雀驗證：
 
 ```bash
-tail -n 5 out/agi.log   # 必須看到 roster: source='Test Directory' people=N aliases=M
+tail -n 5 out/agi.log   # 必須看到 roster: source='Test Directory' people=N aliases=M departments=D
 ```
 
 指令之外的語意（`scripts/agi.sh`）：
@@ -113,6 +278,35 @@ tail -n 5 out/agi.log   # 必須看到 roster: source='Test Directory' people=N 
   SIGHUP 只換名冊，**進行中的 session 不重置**（`TurnManager` 跨 reload 存活）。
 - 背景模式看 log：`tail -f out/agi.log`。
 - **不要和 systemd 同時跑**（port 衝突）。手動模式是正式模式，重開機不會自動起。
+
+### 人員異動
+
+1. userman 改人／外部目錄同步：`sudo fwconsole userman --syncall --force`（FreePBX 管理指令需 root；AD/LDAP 先拉進 DB）。
+   userman 本身**不需要** Apply Config：姓名、部門、分機綁定只寫 `userman_users`，
+   AGI 直接 SELECT。例外是同一批動到分機（Extensions，含 Quick Create 建的使用者）、queue、
+   ring group、inbound route，或改了 `extensions_custom.conf`——那才需要 reload dialplan
+   （`asterisk -rx 'dialplan reload'`，或 GUI 的 Apply Config），
+   漏了它 `Dial(Local/<ext>@from-internal)` 會找不到新分機。
+2. 離職：同步刪掉 `data/aliases.json` 裡該 `user_id`（孤兒 alias 會讓 reload 永遠失敗）。
+3. `uv run scripts/check_aliases.py --source-directory '<你的 directory 名>'` 退出碼 0。
+4. `scripts/agi.sh reload` → 必須看到 `reload ok: people=N aliases=M (was K)`；
+   `reload failed` 時服務仍用舊索引，修好再 reload。進行中的 session 不重置。
+5. `aliases.json`／`departments.json` 一律「寫暫存檔 → `mv` 取代」，避免半寫入碰上 HUP。
+6. 金絲雀：`tail -n 5 out/agi.log` 的 `people=N` 要等於變更後的人數。
+
+### 故障演練：STT key 失效
+
+```bash
+cd /var/lib/asterisk/dial-by-name
+cp -p .env /tmp/dbn.env.bak
+sed -i '/^ELEVENLABS_API_KEY=/s/=.*/=/' .env   # 清空值，不刪行
+scripts/agi.sh restart
+# 撥一通 → out/calls/YYYYMMDD.jsonl 該輪應見 "stt_status":"auth"、DBN_ACTION=fallback → 總機
+mv /tmp/dbn.env.bak .env && scripts/agi.sh restart
+```
+
+`auth`（握手 401／403 或缺 key）與 `ws`（WS 事件層錯誤）都落 `fallback` → 總機；
+分類的權威是 `docs/io-mapping.md` §3。
 
 ### systemd（選用，開機自啟）
 
@@ -159,14 +353,14 @@ grep "roster: source" out/agi.log | tail -1    # 金絲雀：people=13
 - `scripts/agi.sh status` 的 pid 判定讀 `out/agi.pid`（只有 `agi.sh start` 會寫）：
   systemd 起的進程在它眼裡是 `stopped`；同一段輸出裡的 `ss` 監聽行與 sweeper heartbeat 仍有效。
 - DB 連線走 `/etc/freepbx.conf` fallback；要唯讀帳號就補 `DBN_MYSQL_*` 四鍵到 `.env`。
-- 本節是 systemd unit 與服務啟停的單一來源；`docs/dialplan.md` §3.5 只記部署面（權限、人員異動 SOP）並指向本章。
+- 本節（含「人員異動」「故障演練」）是服務啟停與維運的單一來源；`docs/dialplan.md` 不重複。
 
 ---
 
 ## 音檔：本 repo 不含提示音
 
 系統會播 19 支提示音（`welcome`、`processing`、`retry`、`q-*`、`dept-*`、`transferring`…）。
-**它們不在這個 repo 裡**：真人錄音／TTS 資產的再散布條件另計，請自行錄製或合成。
+規格與清單如下；部署指令見「部署主線」第 6 步。
 
 | 項目 | 值 |
 |---|---|
@@ -175,7 +369,7 @@ grep "roster: source" out/agi.log | tail -1    # 金絲雀：people=13
 | 部署位置 | **`/var/lib/asterisk/sounds/dbn/zh/`**（由 dialplan 的 `DBN_SOUND` 決定） |
 | 驗證（開發端） | `uv run scripts/check_sounds.py <你的暫存目錄>`（缺檔／格式錯／非 ASCII 都會列出來） |
 
-上傳到 PBX 的指令、目錄與權限見 `docs/dialplan.md` §1。少了 `dbn/` 這一層（只放到
+上傳指令見「部署主線」第 6 步。少了 `dbn/` 這一層（只放到
 `/var/lib/asterisk/sounds/zh/`）的後果是 `Playback` **全無聲、且沒有明顯報錯**——這是最常見的部署錯誤。
 
 clip key 的三段對照：
@@ -218,7 +412,8 @@ clip key 的三段對照：
 **跨輪**通話狀態只有一處（dialplan）；AGI 只在一輪之內保存 session（`start` 登記、`result` 收工，
 過期 session 與 wav 由 TTL 20 秒的 sweeper 清），壞掉時 dialplan 有安全網（`AGISTATUS` → 總機）。
 
-實際部署見 `docs/dialplan.md`（手動驗收清單、人員異動 SOP）；服務啟停與（選用）systemd unit 見上面的「服務管理與開機自啟」。
+部署主線見本檔「部署主線：從零到撥通」；dialplan 片段與電話層落點見 `docs/dialplan.md`；
+服務啟停與（選用）systemd unit 見「服務管理與開機自啟」。
 
 ### 檔案佈局
 
@@ -233,7 +428,7 @@ dialname/health.py         sweeper heartbeat／status 判定（out/agi.health.js
 dialname/pbx_directory.py  正式名冊入口：userman＋aliases.json＋departments.json
 agi_server.py  eval.py  trace.py  demo.py  stt_batch.py
 docs/design.md             設計與理由（不變式、決策順序、門檻、外部模型、名冊、回歸）
-docs/dialplan.md           dialplan 片段、部署、手動驗收
+docs/dialplan.md           dialplan 片段、DBN_* 變數、失敗分派
 docs/calls.md              20 通劇本協議與判定（表格由 scripts/calls.py table 產生）
 docs/glossary.md           欄位／列舉值字典、常數表
 docs/io-mapping.md         五段 I/O 邊界、Decision → PBX
@@ -266,7 +461,7 @@ tests/                     241 個 pytest（L0 golden、L1 劇本、AGI、Realti
 
 500 個人的候選清單同時造成三件事：token 成本與延遲隨人數線性上升；選項一多，
 機率分布被攤平、`confidence` 失去鑑別度；同音字（王/汪、張/章）本來就只有**發音**能分辨，
-把判斷丟給語言模型等於要它做字串比對——那是本機 3 ms 就能做完的事。
+把判斷丟給語言模型等於要它做字串比對——那是本地 3 ms 就能做完的事。
 
 所以分工是「本地索引收斂候選 → 本地決策」，**整本電話簿永遠不出機器**。
 現行版本連「少數候選」也不外送：2026-11-21 起決策層零外部模型存取，
@@ -364,7 +559,7 @@ C 是純 margin 檢查抓不到的：分數差看起來安全，但兩個人**�
 
 `eval.py --calls` 可以吃「通話日誌＋truth.csv」算同一套指標：通話中 AGI 只寫 JSONL
 （逐字稿＋決策），撥完之後才把正確答案接上去評分，答案卡不參與通話當下的任何決策。
-欄位與流程見 `docs/calls.md` §4 與 `docs/dialplan.md`。
+欄位與流程見 `docs/calls.md` §4 與 `docs/dialplan.md` §3.9。
 
 **本 repo 不含任何真實通話語料**（含個資）。真實 WER 請用自己的錄音量。
 
@@ -378,8 +573,16 @@ C 是純 margin 檢查抓不到的：分數差看起來安全，但兩個人**�
   送繁體 keyterm 可能白費；需要 A/B 驗證（`stt_batch.py --audio-dir … --truth …` 三組共用同一份 truth）。
 - **`disclose_names=True` 未完整**：見上面的音檔章節。
 - **STT 全斷沒有 fast-fail**：WS 連不上／中斷且無 transcript → `fallback`／`stream-error` → 總機；
-  `result` 端總預算 3 秒（`RESULT_TIMEOUT`），沒有熔斷、沒有指數退避。401／403 與壞 key
-  一律落總機（2026-11-23 翻案 PoC 的掛線；`auth`／`ws` 分界見 `docs/io-mapping.md` §3）。
+  `result` 端總預算 3 秒（`RESULT_TIMEOUT`），沒有熔斷、沒有指數退避——WS 卡在握手就是等滿
+  3 秒才落總機。401／403 與壞 key 一律落總機（2026-11-23 翻案 PoC 的掛線；
+  `auth`／`ws` 分界見 `docs/io-mapping.md` §3）。
+- **並發閘 4（寫死）**：四個沒走到 `result` 的 session 在 20 秒 TTL 內佔滿閘，期間新話務
+  全量落總機（availability cliff）。
+- **TTL 20 秒＝隱私窗口**：OPERATOR／HANGUP／ERROR／閘滿 stub 的 wav 由 sweeper 在 20 秒內刪；
+  服務若被 `kill -9`，sweeper 也停止，殘留檔沒有外部清理器。`scripts/agi.sh status` 以
+  heartbeat 新舊判 sweeper 死活（超過 5 秒＝DEAD）。
+- **故障觀測面**是 `out/calls/*.jsonl` 的 `stt_status`／`stream.status` 與 `scripts/agi.sh status`；
+  沒有告警、沒有 metrics 匯出（刻意不做）。
 - **同部門同音兄弟**：示範名冊的同音對都刻意跨部門，沒有同部門同音對可測；真機第二場
   遇到同部門同音時行為＝`homophone-unresolvable` → 總機（安全拒猜），合成測資未覆蓋。
 - **Go 移植**只有對照表（`docs/design.md` §3 的常數是唯一來源），沒有實作。
