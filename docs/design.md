@@ -324,9 +324,10 @@ uv run python tests/test_eval_golden.py --write  # 重寫兩份 hash
 `DBN_SOUND=/var/lib/asterisk/sounds/dbn/zh`。
 
 - repo 內**不含任何音檔**；`sounds/zh/` 只是決策層的 clip key 命名空間。
-- 提示音共 19 支，8 kHz／mono／16-bit、檔名 ASCII；清單的單一真相是
-  `scripts/check_sounds.py` 的 `EXPECTED`。
-- 部署、格式驗證與上傳到 `/var/lib/asterisk/sounds/dbn/zh/` 的程序見 `docs/dialplan.md` §1。
+- 提示音共 19 支，8 kHz／mono／16-bit、檔名 ASCII；檔名清單的單一真相是
+  `scripts/check_sounds.py` 的 `EXPECTED`，每支的內容與觸發時機見 `docs/glossary.md` §9。
+- 部署、格式驗證與上傳到 `/var/lib/asterisk/sounds/dbn/zh/` 的程序見 `README.md`
+  「部署主線」第 6 步與「音檔」章。
   少了 `dbn/` 這一層，`Playback` 會全無聲且沒有明顯報錯。
 
 ### 7.2 隱私：預設不念姓名

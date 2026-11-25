@@ -174,6 +174,10 @@
 > （`q-dept-who` 待錄，2026-11-19 加入）：
 > `welcome`、`processing`、`retry`、`q-say-full-name`、`q-which-dept`、`q-operator`、
 > `transferring`、`to-operator`、`not-found`、`goodbye`、`dept-<dept_id>`、`q-dept-who`。
+> **檔名與數量以 `scripts/check_sounds.py` 的 `EXPECTED` 為準**（11 支固定＋8 支
+> `dept-<dept_id>`＝19）；本節負責每支的**內容**（念什麼、何時播）與 `disclose_names=True`
+> 分支。
+>
 > **分支現況**（`disclose_names=True` 需要的四支固定句未實作、`agi_server.py` 沒有旗標）見
 > [`docs/design.md`](design.md) §7.2 與 [`README.md`](../README.md) 的「音檔」章。
 

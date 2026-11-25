@@ -1,7 +1,5 @@
 # dial-by-name：說姓名 → 轉分機（中文姓名的同音消歧參考實作）
 
-> 角色：本檔是「部署主線與先期條件、服務啟停與維運」的唯一來源；跨檔只指向、不複製。
-
 FreePBX／Asterisk 用的「姓名 → 分機」比對層。來電者說出名字，系統撥接到對應分機，
 **不播報號碼、不念姓名**。
 
@@ -21,7 +19,7 @@ FreePBX／Asterisk 用的「姓名 → 分機」比對層。來電者說出名�
 | 開發流程（測試、指標、除錯）                   | `AGENTS.md` §4                                     |
 | dialplan 片段、`DBN_*`、電話層失敗分派         | `docs/dialplan.md`                                 |
 | 設計理由、門檻依據                             | `docs/design.md`                                   |
-| 名詞、欄位、常數                               | `docs/glossary.md`                                 |
+| 名詞、欄位、常數、19 支提示音內容               | `docs/glossary.md` §9                              |
 | JSONL／`DBN_*`／決策→dialplan 對映             | `docs/io-mapping.md`                               |
 | 20 通劇本協議                                  | `docs/calls.md`                                    |
 | 公開版來源                                     | `docs/provenance.md`                               |
@@ -137,7 +135,7 @@ chmod 600 .env
   兩邊都不齊或連線失敗 → 拒絕啟動。
 - 用專用帳號時：`.env` 的 owner 改該帳號，且 `DBN_MYSQL_*` 四鍵**必填**（讀不到 `/etc/freepbx.conf`）。
 
-### 5. `data/aliases.json`（userman 模式的小名 sidecar）
+### 5. `data/aliases.json`（userman 名冊的別名清單）
 
 ```bash
 cp data/aliases.example.json data/aliases.json
@@ -150,7 +148,8 @@ chmod 600 data/aliases.json
 ### 6. 提示音 19 支 → `/var/lib/asterisk/sounds/dbn/zh/`
 
 音檔是這條主線**唯一的外部輸入**：repo 不含、也無法由前面的步驟生成——在**開發端**
-錄製或合成、用 `scripts/check_sounds.py` 驗格式，再傳上部署主機。
+錄製或合成（每支要念什麼、何時播見 [`docs/glossary.md`](docs/glossary.md) §9）、
+用 `scripts/check_sounds.py` 驗格式，再傳上部署主機。
 
 ```bash
 # 開發端先驗格式（8 kHz／mono／16-bit、檔名 ASCII）
@@ -360,12 +359,14 @@ grep "roster: source" out/agi.log | tail -1    # 金絲雀：people=13
 ## 音檔：本 repo 不含提示音
 
 系統會播 19 支提示音（`welcome`、`processing`、`retry`、`q-*`、`dept-*`、`transferring`…）。
-規格與清單如下；部署指令見「部署主線」第 6 步。
+每支要念什麼、何時播、哪些只在 `disclose_names=True` 使用，見
+[`docs/glossary.md`](docs/glossary.md) §9；部署指令見「部署主線」第 6 步。
 
 | 項目 | 值 |
 |---|---|
 | 數量與格式 | 19 支 `.wav`，**8 kHz／mono／16-bit**，檔名純 ASCII |
-| 清單 | 單一真相是 `scripts/check_sounds.py` 的 `EXPECTED`（不要另外抄一份） |
+| 檔名清單（機器驗證） | `scripts/check_sounds.py` 的 `EXPECTED`（不要另外抄一份） |
+| 內容與話術 | [`docs/glossary.md`](docs/glossary.md) §9（逐支：念什麼、何時播、`disclose_names` 分支） |
 | 部署位置 | **`/var/lib/asterisk/sounds/dbn/zh/`**（由 dialplan 的 `DBN_SOUND` 決定） |
 | 驗證（開發端） | `uv run scripts/check_sounds.py <你的暫存目錄>`（缺檔／格式錯／非 ASCII 都會列出來） |
 
