@@ -10,6 +10,10 @@
 
 ### Added
 
+- 專案封面圖 `assets/cover.html`（中文，骨白 × 硃砂）與 `assets/cover-en.html`（English，深藍底），
+  各附 2560×1440 的 `cover.png`／`cover-en.png`。以 diagram-design（type-process 語法）繪製的
+  四層 × 五階段流程圖（電話層／AGI 服務／決策核心／名冊 × 收音・轉錄・收斂・決策・執行），
+  供簡報與 README 使用；決策層在本機完成的說法以副標呈現，圖中不畫對外模型呼叫。
 - README：新增「服務管理與開機自啟」章節——手動 `scripts/agi.sh` 為正式模式（2026-11-25 裁定不實裝 unit），
   另載選用 systemd unit 全文與安裝驗證步驟。
 - FastAGI 兩相協議：`AGI(...,start,...)` 登記旁路 session 並立即返回，

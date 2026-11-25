@@ -8,4 +8,7 @@ out/
 # API key（使用者本地提供，絕不進版控）
 .env
 
+# 本地 agent skill（圖表產生，與專案功能無關）
+.agents/
+
 

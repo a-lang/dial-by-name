@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Say a Name, Reach an Extension — dial-by-name pipeline</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Serif:ital@0;1&family=Noto+Sans+TC:wght@400;500;600&family=Noto+Serif+TC:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --color-paper:  #1b2430;
+      --color-ink:    #eef1f4;
+      --color-muted:  #9db0c3;
+      --font-sans:  'Geist', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+      --font-serif: 'Instrument Serif', 'Noto Serif', 'Noto Serif TC', serif;
+      --font-mono:  'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .frame { max-width: 1280px; width: 100%; min-width: 0; }
+    .diagram-container { width: 100%; overflow-x: auto; }
+
+    svg { min-width: 1280px; width: 100%; height: auto; display: block; }
+
+    @media print {
+      .diagram-container { overflow-x: visible; }
+      svg { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="diagram-container">
+      <svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="cover-en-title cover-en-desc">
+        <title id="cover-en-title">Say a Name, Reach an Extension — dial-by-name pipeline</title>
+        <desc id="cover-en-desc">FreePBX dialplan records the caller's speech, FastAGI transcribes it, the decision core matches pinyin against the directory and applies ten ordered rules to produce a Decision, and the dialplan routes the call.</desc>
+        <defs>
+          <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+            <circle cx="1" cy="1" r="0.8" fill="rgba(238,241,244,0.10)"/>
+          </pattern>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#9db0c3"/>
+          </marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#f2915f"/>
+          </marker>
+        </defs>
+
+        <!-- ground -->
+        <rect width="100%" height="100%" fill="#1b2430"/>
+        <rect width="100%" height="100%" fill="url(#dots)" opacity="0.55"/>
+
+        <!-- lane tints: index 1 and 3 -->
+        <rect x="200" y="336" width="1080" height="104" fill="rgba(238,241,244,0.018)"/>
+        <rect x="200" y="544" width="1080" height="104" fill="rgba(238,241,244,0.018)"/>
+
+        <!-- lane rules -->
+        <line x1="40" y1="232" x2="1240" y2="232" stroke="rgba(238,241,244,0.12)" stroke-width="0.8"/>
+        <line x1="40" y1="336" x2="1240" y2="336" stroke="rgba(238,241,244,0.12)" stroke-width="0.8"/>
+        <line x1="40" y1="440" x2="1240" y2="440" stroke="rgba(238,241,244,0.12)" stroke-width="0.8"/>
+        <line x1="40" y1="544" x2="1240" y2="544" stroke="rgba(238,241,244,0.12)" stroke-width="0.8"/>
+        <line x1="40" y1="648" x2="1240" y2="648" stroke="rgba(238,241,244,0.12)" stroke-width="0.8"/>
+        <line x1="200" y1="232" x2="200" y2="648" stroke="rgba(238,241,244,0.20)" stroke-width="1"/>
+
+        <!-- brand -->
+        <text x="40" y="64" fill="#9db0c3" font-size="8" font-weight="500" letter-spacing="0.12em"
+              font-family="'Geist Mono', ui-monospace, monospace">DIAL-BY-NAME · FREEPBX AGI</text>
+        <text x="40" y="108" fill="#eef1f4" font-size="40" font-weight="400"
+              font-family="'Instrument Serif', 'Noto Serif', 'Noto Serif TC', serif">Say a Name, Reach an Extension</text>
+        <text x="40" y="142" fill="#9db0c3" font-size="16"
+              font-family="'Geist', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif">No model calls: pinyin matching and rule order run entirely on the PBX</text>
+
+        <!-- step header -->
+        <rect x="290" y="180" width="28" height="20" rx="10" fill="rgba(238,241,244,0.12)"/>
+        <text x="304" y="194" text-anchor="middle" fill="#eef1f4" font-size="12" font-weight="600"
+              font-family="'Geist Mono', ui-monospace, monospace">01</text>
+        <text x="304" y="220" text-anchor="middle" fill="#9db0c3" font-size="12" font-weight="500" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">CAPTURE</text>
+
+        <rect x="498" y="180" width="28" height="20" rx="10" fill="rgba(238,241,244,0.12)"/>
+        <text x="512" y="194" text-anchor="middle" fill="#eef1f4" font-size="12" font-weight="600"
+              font-family="'Geist Mono', ui-monospace, monospace">02</text>
+        <text x="512" y="220" text-anchor="middle" fill="#9db0c3" font-size="12" font-weight="500" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">TRANSCRIBE</text>
+
+        <rect x="706" y="180" width="28" height="20" rx="10" fill="rgba(238,241,244,0.12)"/>
+        <text x="720" y="194" text-anchor="middle" fill="#eef1f4" font-size="12" font-weight="600"
+              font-family="'Geist Mono', ui-monospace, monospace">03</text>
+        <text x="720" y="220" text-anchor="middle" fill="#9db0c3" font-size="12" font-weight="500" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">SHORTLIST</text>
+
+        <rect x="914" y="180" width="28" height="20" rx="10" fill="rgba(242,145,95,0.20)"/>
+        <text x="928" y="194" text-anchor="middle" fill="#f2915f" font-size="12" font-weight="600"
+              font-family="'Geist Mono', ui-monospace, monospace">04</text>
+        <text x="928" y="220" text-anchor="middle" fill="#f2915f" font-size="12" font-weight="500" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">DECIDE</text>
+
+        <rect x="1122" y="180" width="28" height="20" rx="10" fill="rgba(238,241,244,0.12)"/>
+        <text x="1136" y="194" text-anchor="middle" fill="#eef1f4" font-size="12" font-weight="600"
+              font-family="'Geist Mono', ui-monospace, monospace">05</text>
+        <text x="1136" y="220" text-anchor="middle" fill="#9db0c3" font-size="12" font-weight="500" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">DIAL</text>
+
+        <!-- lane labels -->
+        <text x="100" y="279" text-anchor="middle" fill="#9db0c3" font-size="10" font-weight="600" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">TELEPHONY</text>
+        <text x="100" y="297" text-anchor="middle" fill="#9db0c3" font-size="8" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">FREEPBX · DIALPLAN</text>
+
+        <text x="100" y="383" text-anchor="middle" fill="#9db0c3" font-size="10" font-weight="600" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">AGI SERVICE</text>
+        <text x="100" y="401" text-anchor="middle" fill="#9db0c3" font-size="8" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">FASTAGI · REALTIME</text>
+
+        <text x="100" y="487" text-anchor="middle" fill="#9db0c3" font-size="10" font-weight="600" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">DECISION CORE</text>
+        <text x="100" y="505" text-anchor="middle" fill="#9db0c3" font-size="8" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">DIALNAME · CORE</text>
+
+        <text x="100" y="591" text-anchor="middle" fill="#9db0c3" font-size="10" font-weight="600" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">DIRECTORY</text>
+        <text x="100" y="609" text-anchor="middle" fill="#9db0c3" font-size="8" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">USERMAN · ALIASES</text>
+
+        <!-- arrows (before nodes) -->
+        <path d="M 388 284 H 504 Q 512 284 512 292 V 344" fill="none" stroke="#9db0c3" stroke-width="1"
+              marker-end="url(#arrow)"/>
+        <path d="M 596 388 H 712 Q 720 388 720 396 V 448" fill="none" stroke="#9db0c3" stroke-width="1"
+              marker-end="url(#arrow)"/>
+        <path d="M 596 596 H 712 Q 720 596 720 588 V 536" fill="none" stroke="#9db0c3" stroke-width="1"
+              stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+        <path d="M 804 492 H 844" fill="none" stroke="#f2915f" stroke-width="1.2"
+              marker-end="url(#arrow-accent)"/>
+        <path d="M 1012 492 H 1128 Q 1136 492 1136 484 V 328" fill="none" stroke="#f2915f" stroke-width="1.2"
+              marker-end="url(#arrow-accent)"/>
+
+        <!-- nodes -->
+        <!-- lane 0 / step 0: capture -->
+        <rect x="220" y="240" width="168" height="88" rx="6" fill="#1b2430"/>
+        <rect x="220" y="240" width="168" height="88" rx="6" fill="#22303f" stroke="rgba(238,241,244,0.25)" stroke-width="1"/>
+        <rect x="228" y="248" width="24" height="12" rx="2" fill="none" stroke="rgba(238,241,244,0.25)" stroke-width="0.8"/>
+        <text x="240" y="257" text-anchor="middle" fill="#9db0c3" font-size="8" font-weight="600"
+              font-family="'Geist Mono', ui-monospace, monospace">PBX</text>
+        <text x="304" y="282" text-anchor="middle" fill="#eef1f4" font-size="16" font-weight="600"
+              font-family="'Geist', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif">Capture</text>
+        <text x="304" y="300" text-anchor="middle" fill="#9db0c3" font-size="12"
+              font-family="'Geist', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif">PCM → WAV</text>
+        <text x="304" y="316" text-anchor="middle" fill="#8497ab" font-size="12"
+              font-family="'Geist Mono', ui-monospace, monospace">Record() · start</text>
+
+        <!-- lane 1 / step 1: transcribe -->
+        <rect x="428" y="344" width="168" height="88" rx="6" fill="#1b2430"/>
+        <rect x="428" y="344" width="168" height="88" rx="6" fill="#22303f" stroke="rgba(238,241,244,0.25)" stroke-width="1"/>
+        <rect x="436" y="352" width="24" height="12" rx="2" fill="none" stroke="rgba(238,241,244,0.25)" stroke-width="0.8"/>
+        <text x="448" y="361" text-anchor="middle" fill="#9db0c3" font-size="8" font-weight="600"
+              font-family="'Geist Mono', ui-monospace, monospace">AGI</text>
+        <text x="512" y="386" text-anchor="middle" fill="#eef1f4" font-size="16" font-weight="600"
+              font-family="'Geist', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif">Transcribe</text>
+        <text x="512" y="404" text-anchor="middle" fill="#9db0c3" font-size="12"
+              font-family="'Geist', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif">WS → transcript</text>
+        <text x="512" y="420" text-anchor="middle" fill="#8497ab" font-size="12"
+              font-family="'Geist Mono', ui-monospace, monospace">Scribe v2 · result</text>
+
+        <!-- lane 3 / step 1: directory -->
+        <rect x="428" y="552" width="168" height="88" rx="6" fill="#1b2430"/>
+        <rect x="428" y="552" width="168" height="88" rx="6" fill="#22303f" stroke="rgba(238,241,244,0.25)" stroke-width="1"/>
+        <rect x="436" y="560" width="24" height="12" rx="2" fill="none" stroke="rgba(238,241,244,0.25)" stroke-width="0.8"/>
+        <text x="448" y="569" text-anchor="middle" fill="#9db0c3" font-size="8" font-weight="600"
+              font-family="'Geist Mono', ui-monospace, monospace">DIR</text>
+        <text x="512" y="594" text-anchor="middle" fill="#eef1f4" font-size="16" font-weight="600"
+              font-family="'Geist', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif">Directory</text>
+        <text x="512" y="612" text-anchor="middle" fill="#9db0c3" font-size="12"
+              font-family="'Geist Mono', ui-monospace, monospace">People[] · dept</text>
+        <text x="512" y="628" text-anchor="middle" fill="#8497ab" font-size="12"
+              font-family="'Geist Mono', ui-monospace, monospace">userman · aliases</text>
+
+        <!-- lane 2 / step 2: shortlist -->
+        <rect x="636" y="448" width="168" height="88" rx="6" fill="#1b2430"/>
+        <rect x="636" y="448" width="168" height="88" rx="6" fill="#22303f" stroke="rgba(238,241,244,0.25)" stroke-width="1"/>
+        <rect x="644" y="456" width="24" height="12" rx="2" fill="none" stroke="rgba(238,241,244,0.25)" stroke-width="0.8"/>
+        <text x="656" y="465" text-anchor="middle" fill="#9db0c3" font-size="8" font-weight="600"
+              font-family="'Geist Mono', ui-monospace, monospace">DBN</text>
+        <text x="720" y="490" text-anchor="middle" fill="#eef1f4" font-size="16" font-weight="600"
+              font-family="'Geist', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif">Shortlist</text>
+        <text x="720" y="508" text-anchor="middle" fill="#9db0c3" font-size="12"
+              font-family="'Geist Mono', ui-monospace, monospace">→ Candidate[]</text>
+        <text x="720" y="524" text-anchor="middle" fill="#8497ab" font-size="12"
+              font-family="'Geist Mono', ui-monospace, monospace">core.search()</text>
+
+        <!-- lane 2 / step 3: decide (focal) -->
+        <rect x="844" y="448" width="168" height="88" rx="6" fill="#1b2430"/>
+        <rect x="844" y="448" width="168" height="88" rx="6" fill="rgba(242,145,95,0.08)" stroke="#f2915f" stroke-width="1"/>
+        <rect x="852" y="456" width="24" height="12" rx="2" fill="none" stroke="rgba(242,145,95,0.50)" stroke-width="0.8"/>
+        <text x="864" y="465" text-anchor="middle" fill="#f2915f" font-size="8" font-weight="600"
+              font-family="'Geist Mono', ui-monospace, monospace">DBN</text>
+        <text x="928" y="490" text-anchor="middle" fill="#eef1f4" font-size="16" font-weight="600"
+              font-family="'Geist', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif">Decide</text>
+        <text x="928" y="508" text-anchor="middle" fill="#9db0c3" font-size="12"
+              font-family="'Geist', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif">rules → Decision</text>
+        <text x="928" y="524" text-anchor="middle" fill="#8497ab" font-size="12"
+              font-family="'Geist Mono', ui-monospace, monospace">decide() · 10 rules</text>
+
+        <!-- lane 0 / step 4: dial -->
+        <rect x="1052" y="240" width="168" height="88" rx="6" fill="#1b2430"/>
+        <rect x="1052" y="240" width="168" height="88" rx="6" fill="#22303f" stroke="rgba(238,241,244,0.25)" stroke-width="1"/>
+        <rect x="1060" y="248" width="24" height="12" rx="2" fill="none" stroke="rgba(238,241,244,0.25)" stroke-width="0.8"/>
+        <text x="1072" y="257" text-anchor="middle" fill="#9db0c3" font-size="8" font-weight="600"
+              font-family="'Geist Mono', ui-monospace, monospace">PBX</text>
+        <text x="1136" y="282" text-anchor="middle" fill="#eef1f4" font-size="16" font-weight="600"
+              font-family="'Geist', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif">Dial</text>
+        <text x="1136" y="300" text-anchor="middle" fill="#9db0c3" font-size="12"
+              font-family="'Geist', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif">Decision → Goto</text>
+        <text x="1136" y="316" text-anchor="middle" fill="#8497ab" font-size="12"
+              font-family="'Geist Mono', ui-monospace, monospace">dialplan · DBN_*</text>
+
+        <!-- legend -->
+        <line x1="40" y1="672" x2="76" y2="672" stroke="#9db0c3" stroke-width="1"/>
+        <text x="88" y="676" text-anchor="start" fill="#9db0c3" font-size="11" font-weight="500" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">DATA HANDOFF</text>
+        <line x1="200" y1="672" x2="236" y2="672" stroke="#9db0c3" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="248" y="676" text-anchor="start" fill="#9db0c3" font-size="11" font-weight="500" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">DIRECTORY READ</text>
+        <rect x="376" y="666" width="12" height="12" fill="rgba(242,145,95,0.08)" stroke="#f2915f" stroke-width="1"/>
+        <text x="400" y="676" text-anchor="start" fill="#9db0c3" font-size="11" font-weight="500" letter-spacing="0.08em"
+              font-family="'Geist Mono', ui-monospace, monospace">DECISION PIVOT</text>
+      </svg>
+    </div>
+  </div>
+</body>
+</html>

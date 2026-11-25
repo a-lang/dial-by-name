@@ -46,6 +46,7 @@ demo.py               9 個通話狀態展示
 stt_batch.py          STT 冒煙測試／離線重播（keyterms A/B）
 docs/dialplan.md      dialplan 片段、`DBN_*` 變數、電話層失敗分派
 docs/calls.md         20 通劇本的撥號協議與人工判定（表格由 `scripts/calls.py table` 產生）
+assets/cover.html     專案封面圖（四層 × 五階段；中／英各一版 cover.html、cover-en.html）
 scripts/check_sounds.py 檢查 19 個提示音（檔名 ASCII、8k/mono/16-bit）
 scripts/check_aliases.py 唯讀檢查 aliases.json（孤兒／重複／空值／控制字元；非零退出碼）
 scripts/agi.sh        手動啟停 FastAGI（PoC：foreground/start/stop/reload/status）
