@@ -9,27 +9,37 @@ dialplan 傳入 `wav + attempt + DBN_CANDS`，這裡只回六個通道變數：
 `DBN_CANDS`（`pid:score&…`）是給**下一輪**用的：第二輪只講部門時，
 用它把上一輪的候選收斂到該部門。狀態存在通道變數上，AGI 自己不保存任何東西。
 
-失敗對應（與 docs/dialplan.md 一致）：
-  空逐字稿／STT timeout／5xx → retry（由 dialplan 的 DBN_TRIES 決定何時掛線）
-  401/403                   → hangup（key 有問題時不灌爆總機）
-  未預期例外                → fallback（dialplan 轉總機）
+失敗對應（與 docs/dialplan.md §3.9 一致）：
+  Realtime 傳輸層（401／WS 中斷／frames=0／stub）→ fallback（總機）
+  無 commit 且無 partial（沉默）        → retry（DBN_TRIES 用盡由 dialplan 掛線）
+  未預期例外                          → fallback（dialplan 轉總機）
+
+`handle_turn` 是**離線工具入口**（jev_probe／calls.py／測試），不拆不改，保留批次
+STT 的 401→hangup 語意；生產路徑是兩相協議（`handle_start` → 收音 → `handle_result`），
+`handle_result` 拿到 transcript 後仍走它，search／候選 carry／decide 只有一份實作。
+Realtime 的傳輸層失敗（401、WS 中斷、沉默）在 `handle_result` 就先分流，見該函式。
 """
 
 from __future__ import annotations
 
+import functools
 import json
+import logging
 import time
 import wave
 from datetime import datetime
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
 
 from .core import Candidate, Directory
 from .decision import Decision, decide
-from .stt_client import SttAuthError, SttError
+from .stt_client import SttAuthError, SttError, Transcript
+from .turns import RESULT_TIMEOUT, TurnManager
 
 CLIP_PREFIX = "sounds/zh/"
 GOODBYE_CLIP = "goodbye"
+
+log = logging.getLogger("dialname.agi")
 
 # 跨輪沿用候選（`DBN_CANDS`）的序列化格式：`pid:score&pid:score`。
 # 用 `&` 當分隔是因為 AGI 的參數是逗號分隔的，逗號會把一個變數拆成多個參數。
@@ -265,6 +275,156 @@ def handle_turn(
 
 
 # --------------------------------------------------------------------------- #
+# 兩相協議（生產路徑）：start 登記＋背景串流，result 決策＋清檔
+# --------------------------------------------------------------------------- #
+class _StreamedTranscript:
+    """把 Realtime 已拿到的文字餵給 `handle_turn`，不重打一次 STT。"""
+
+    def __init__(self, text: str):
+        self._text = text
+
+    def transcribe(self, path) -> Transcript:
+        return Transcript(text=self._text, language=None, raw={"source": "realtime"})
+
+
+def _failure(action: str, reason: str, prev: list[tuple[str, float]]) -> dict:
+    """傳輸層失敗：六個鍵照舊；retry 要把上一輪候選帶回去（下一輪還要收斂）。"""
+    return _ascii_result({
+        "action": action, "target": "", "dept": "", "speech": [],
+        "reason": reason, "cands": _format_carry(prev),
+    })
+
+
+def handle_start(side_wav, call_id, seq, *, manager: TurnManager) -> None:
+    """回傳 None：**不設任何通道變數**。
+
+    dialplan 每輪已預設 `DBN_ACTION=fallback`（docs/dialplan.md:116），所以 start
+    成功、閘滿、內部失敗都不該寫變數——分派鏈在 result 之後，start 寫的東西會被覆寫。
+    閘滿／失敗由 manager 建 stub session，路徑照登記，讓 result 或 sweeper 清檔。
+    """
+    manager.start(call_id, seq, side_wav=side_wav)
+
+
+def _stream_log(session) -> dict:
+    if session is None:
+        return {"status": "no-session", "open_ms": None, "commit_ms": None,
+                "frames": 0, "partials": 0, "bypass": None, "error": None,
+                "detail": None}
+    return {
+        "status": session.status,
+        "open_ms": session.open_ms,
+        "commit_ms": session.commit_ms,
+        "frames": session.frames,
+        "partials": session.partials,
+        "bypass": session.side_wav.name,
+        "error": session.error,
+        "detail": session.detail or None,
+    }
+
+
+def _remove_wav(path) -> None:
+    """隱私最優先：`result` 手上的 Record 檔一律刪。
+
+    session 登記清單正常就含它（`manager.finish` 已刪過）；這一步是防「登記漏了」——
+    例如服務重啟後 session 池不見、只剩 Record 檔孤兒。
+    """
+    try:
+        Path(path).unlink(missing_ok=True)
+    except OSError as exc:
+        log.warning("清理 wav 失敗：%s（%s）", path, exc)
+
+
+def handle_result(
+    wav: str | Path,
+    call_id: str,
+    seq: str | int,
+    attempt: str | int,
+    prev_pids: str | None = None,
+    *,
+    manager: TurnManager,
+    directory: Directory,
+    disclose_names: bool = False,
+    log_dir: str | Path | None = None,
+    timeout: float = RESULT_TIMEOUT,
+) -> dict:
+    """取出 transcript → 決策 → 六個 `DBN_*`；同時 close session 並 unlink 登記的兩檔。
+
+    失敗對應（docs/plan §5）：見 stub／找無 session／frames＝0／WS 錯誤 → `fallback`；
+    無 commit 且全程無 partial（沉默）→ `retry`；無 commit 但曾有 partial → `fallback`。
+    決策本身交給 `handle_turn`（同一份 search／carry／decide 邏輯，零複製）。
+    """
+    entered = time.monotonic()
+    prev = _parse_carry(prev_pids)
+    try:
+        attempt_int = max(1, int(attempt))
+    except (TypeError, ValueError):
+        attempt_int = 1
+
+    session = manager.claim(call_id, seq)
+    text = None
+    stt_ms = None
+    stt_status = "no-session"
+
+    if session is None:
+        result = _failure("fallback", "result-no-session", prev)
+    elif session.stub:
+        stt_status = "stub"
+        manager.finish(session)
+        result = _failure("fallback", "session-stub", prev)
+    else:
+        session.final.wait(timeout)
+        stt_ms = int((time.monotonic() - entered) * 1000)
+        manager.finish(session)     # 逾時就中止 worker；正常路徑 join 立即返回
+        text = session.text
+        if session.error and text is None:
+            stt_status = session.error
+            result = _failure("fallback", "stream-error", prev)
+        elif session.frames == 0:
+            # 旁路檔沒出現／tailer 死：系統故障。frames 只能在這裡判定（Stop 後必定 flush）
+            stt_status = "frames-0"
+            result = _failure("fallback", "bypass-empty", prev)
+        elif text is None:
+            # 判別訊號是 VAD 曾否發 partial，不是 frames（frames 對純靜音也 >0）
+            if session.partials == 0:
+                stt_status = "no-speech"
+                result = _failure("retry", "no-speech", prev)
+            else:
+                stt_status = "partial-only"
+                result = _failure("fallback", "stream-stalled", prev)
+        else:
+            stt_status = "ok" if text.strip() else "empty"
+            result = handle_turn(
+                wav, attempt_int, stt=_StreamedTranscript(text), directory=directory,
+                disclose_names=disclose_names, log_dir=None, call_id=str(call_id),
+                prev_pids=prev_pids,
+            )
+
+    # 登記清單正常就含這檔（manager.finish 已刪）；這一步補「無 session／登記漏掉」的孤兒
+    _remove_wav(wav)
+
+    _append_log(log_dir, {
+        "ts": _now(),
+        "call_id": call_id,
+        "attempt": attempt_int,
+        "seq": seq,
+        "wav": str(wav),
+        # `stt.ms`＝result 進門到拿到 transcript 的等待（成功標準 #1 的量測點）
+        "stt": {"text": text or "", "lang": None, "ms": stt_ms},
+        "stream": _stream_log(session),
+        "candidates": [{"pid": pid, "score": score}
+                       for pid, score in _parse_carry(result.get("cands"))],
+        "decision": {
+            "action": result["action"],
+            "target": result["target"] or None,
+            "reason": result["reason"],
+            "speech": result["speech"],
+        },
+        "stt_status": stt_status,
+    })
+    return result
+
+
+# --------------------------------------------------------------------------- #
 # AGI 薄協議層（行導向文字）
 # --------------------------------------------------------------------------- #
 class AgiProtocolError(RuntimeError):
@@ -332,23 +492,88 @@ class AgiSession:
         self._command(f'SET VARIABLE {name} "{value}"')
 
 
-def run_session(session: AgiSession, *, handler) -> dict:
-    """讀初始 env、呼叫 handler、寫回五個變數；handler 的簽名見 handle_turn。"""
+DBN_VARIABLES = (
+    ("action", "DBN_ACTION"),
+    ("target", "DBN_TARGET"),
+    ("dept", "DBN_DEPT"),
+    ("speech", "DBN_SPEECH"),
+    ("reason", "DBN_REASON"),
+    ("cands", "DBN_CANDS"),
+)
+
+
+def _required(env: dict[str, str], *names: str) -> list[str]:
+    values = [env.get(name, "") for name in names]
+    missing = [name for name, value in zip(names, values) if not value]
+    if missing:
+        raise AgiProtocolError(f"缺少 AGI 參數：{', '.join(missing)}")
+    return values
+
+
+def _start_from_env(env: dict[str, str], *, manager: TurnManager) -> None:
+    side_wav, call_id, seq = _required(env, "agi_arg_2", "agi_arg_3", "agi_arg_4")
+    handle_start(side_wav, call_id, seq, manager=manager)
+
+
+def make_start_handler(*, manager: TurnManager) -> Callable[[dict[str, str]], None]:
+    """`start` 動詞：只登記 session，回 None（不寫任何通道變數）。
+
+    參數：`agi_arg_2=side_wav`、`agi_arg_3=call_id`、`agi_arg_4=seq`。
+    """
+    return functools.partial(_start_from_env, manager=manager)
+
+
+def _result_from_env(
+    env: dict[str, str],
+    *,
+    manager: TurnManager,
+    directory: Directory,
+    disclose_names: bool = False,
+    log_dir: str | Path | None = None,
+    timeout: float = RESULT_TIMEOUT,
+) -> dict:
+    wav, call_id, seq = _required(env, "agi_arg_2", "agi_arg_3", "agi_arg_4")
+    return handle_result(
+        wav, call_id, seq, env.get("agi_arg_5", "1"), env.get("agi_arg_6", ""),
+        manager=manager, directory=directory, disclose_names=disclose_names,
+        log_dir=log_dir, timeout=timeout,
+    )
+
+
+def make_result_handler(
+    *,
+    manager: TurnManager,
+    directory: Directory,
+    disclose_names: bool = False,
+    log_dir: str | Path | None = None,
+    timeout: float = RESULT_TIMEOUT,
+) -> Callable[[dict[str, str]], dict]:
+    """`result` 動詞：等 transcript → decide → 六個 `DBN_*`。
+
+    參數：`agi_arg_2=wav`、`agi_arg_3=call_id`、`agi_arg_4=seq`、
+    `agi_arg_5=attempt`、`agi_arg_6=DBN_CANDS`。
+    """
+    return functools.partial(
+        _result_from_env, manager=manager, directory=directory,
+        disclose_names=disclose_names, log_dir=log_dir, timeout=timeout,
+    )
+
+
+def run_session(session: AgiSession, *, handlers: dict[str, Callable[[dict[str, str]], dict | None]]) -> dict:
+    """兩相路由：`agi_arg_1` 是動詞（start／result）。
+
+    `start` 的 handler 回 None → 不寫任何變數（dialplan 每輪已預設 fallback）；
+    `result` 一律把六個 `DBN_*` 全送（空值也送），值經 `set_variable` 的安全檢查。
+    """
     env = session.read_env()
-    wav = env.get("agi_arg_1", "")
-    attempt = env.get("agi_arg_2", "1")
-    prev_pids = env.get("agi_arg_3", "")
-    if not wav:
-        raise AgiProtocolError("缺少 agi_arg_1（wav）")
-    result = handler(wav, attempt, prev_pids=prev_pids, call_id=env.get("agi_uniqueid"))
-    for key, var in (
-        ("action", "DBN_ACTION"),
-        ("target", "DBN_TARGET"),
-        ("dept", "DBN_DEPT"),
-        ("speech", "DBN_SPEECH"),
-        ("reason", "DBN_REASON"),
-        ("cands", "DBN_CANDS"),
-    ):
+    verb = env.get("agi_arg_1", "")
+    handler = handlers.get(verb)
+    if handler is None:
+        raise AgiProtocolError(f"未知動詞 agi_arg_1={verb!r}")
+    result = handler(env)
+    if result is None:
+        return {}
+    for key, var in DBN_VARIABLES:
         value = result.get(key, "")
         if isinstance(value, (list, tuple)):
             value = "&".join(value)

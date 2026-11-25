@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""劇本回歸工具（L1 決策層＋L2 音檔重播）：`table`／`check`／`update`／`compare`／`truth-out`／`replay`。
+"""劇本回歸工具（L1 決策層＋L2 音檔重播）：`table`／`check`／`update`／`compare`／`truth-out`／`stats`／`replay`。
 
 資料單一來源是 `data/call_script.json`（`docs/design.md` §回歸三層）。
 人工撥號協議、通過判準與 truth.csv 規則見 `docs/calls.md`。
@@ -16,6 +16,7 @@
     uv run scripts/calls.py update    # 刻意變更：把 expect 搬到新行為並列 diff（--dry-run 只印）
     uv run scripts/calls.py compare out/calls/test-20261119/20261119.jsonl
     uv run scripts/calls.py truth-out --calls out/calls/test-20261119/20261119.jsonl
+    uv run scripts/calls.py stats out/calls/test-20261119/          # stt.ms 分佈與決策統計
     uv run scripts/calls.py replay out/calls/test-20261119/           # L2，需 ELEVENLABS_API_KEY
     uv run scripts/calls.py replay out/calls/test-20261119/ --ab      # 無／有 keyterms 兩輪
 """
@@ -29,6 +30,7 @@ import os
 import sys
 import time
 import unicodedata
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -932,6 +934,63 @@ def truth_out(script: dict, directory, log_path: str | Path, out_path: str | Pat
 
 
 # --------------------------------------------------------------------------- #
+# stats：場次日誌的延遲與分佈（R3 上線量測；只讀 JSONL，不重跑決策）
+# --------------------------------------------------------------------------- #
+def _percentile(values: list[int], pct: int) -> int | None:
+    """nearest-rank：排序後第 `ceil(pct/100 × n)` 個（不用插值，讀者不必換算）。"""
+    if not values:
+        return None
+    ordered = sorted(values)
+    rank = max(1, (pct * len(ordered) + 99) // 100)
+    return ordered[rank - 1]
+
+
+def _count_line(label: str, counts: Counter) -> str:
+    body = " ".join(f"{key}={counts[key]}" for key in sorted(counts)) or "-"
+    return f"{label}: {body}"
+
+
+def stats(log_path: str | Path) -> int:
+    """`stt.ms` 分佈、`decision.action`、`stream.status` 異常、`attempt`／`seq` 分佈。
+
+    `stt.ms` 是 result 進門到拿到 transcript 的等待（`agi.py` 的量測點）。只收
+    `stream.status` 為 `ok`／`dropped` 的輪次——WS 沒開（`error`／`stub`／`no-session`）
+    的 0 不是延遲樣本；其餘列為 `skipped=`，搭配下一行的 `stream.status` 看。
+    """
+    calls = load_log(log_path)
+    records = [record for call in calls for record in call.records]
+
+    stt_ms: list[int] = []
+    for record in records:
+        ms = (record.get("stt") or {}).get("ms")
+        status = (record.get("stream") or {}).get("status")
+        if isinstance(ms, int) and status in ("ok", "dropped"):
+            stt_ms.append(ms)
+    skipped = len(records) - len(stt_ms)
+
+    print(f"calls: {len(calls)}  turns: {len(records)}")
+    if stt_ms:
+        print(
+            f"stt.ms: n={len(stt_ms)} p50={_percentile(stt_ms, 50)}"
+            f" p95={_percentile(stt_ms, 95)} max={max(stt_ms)} skipped={skipped}"
+        )
+    else:
+        print(f"stt.ms: n=0 p50=- p95=- max=- skipped={skipped}")
+
+    action = Counter((r.get("decision") or {}).get("action") or "(missing)" for r in records)
+    status = Counter((r.get("stream") or {}).get("status") or "(missing)" for r in records)
+    attempt = Counter(str(r.get("attempt")) for r in records)
+    seq = Counter(str(r.get("seq")) for r in records)
+
+    print(_count_line("action", action))
+    print(_count_line("stream.status", status))
+    print(f"stream anomalies: {sum(n for s, n in status.items() if s != 'ok')}")
+    print(_count_line("attempt", attempt))
+    print(_count_line("seq", seq))
+    return 0
+
+
+# --------------------------------------------------------------------------- #
 # replay（L2）：wav → STT → handle_turn；決策層與 STT 層分開判定
 # --------------------------------------------------------------------------- #
 # 節流：11-19 實撥 18 通內就撞到 429，所以每通之間預設停 2 秒，429 再退避重試。
@@ -1497,6 +1556,10 @@ def main(argv: list[str] | None = None) -> int:
         default=str(TRUTH_PATH),
         help=f"輸出的 truth.csv（預設 {TRUTH_PATH.relative_to(ROOT)}）",
     )
+    p_stats = sub.add_parser(
+        "stats", help="場次 JSONL：stt.ms 分佈、action／stream.status／attempt／seq 統計"
+    )
+    p_stats.add_argument("log", help="AGI 日誌 .jsonl 或場次目錄（依檔名排序合併）")
     p_replay = sub.add_parser(
         "replay", help="L2：場次 wav 重跑 STT → 決策；需 ELEVENLABS_API_KEY"
     )
@@ -1528,6 +1591,8 @@ def main(argv: list[str] | None = None) -> int:
         return update(script, directory, dry_run=args.dry_run)
     if args.cmd == "compare":
         return compare(script, directory, args.log)
+    if args.cmd == "stats":
+        return stats(args.log)
     if args.cmd == "replay":
         try:
             return replay(

@@ -6,11 +6,12 @@
 #   scripts/agi.sh stop           依 PID 停止
 #   scripts/agi.sh restart
 #   scripts/agi.sh reload         送 SIGHUP → 等 reload ok/failed；失敗回非零
-#   scripts/agi.sh status         看 PID 與 port
+#   scripts/agi.sh status         行程＋port＋sweeper heartbeat＋active session＋最近 JSONL
 #
 # 環境變數：
 #   AGI_LISTEN        預設 127.0.0.1:4573
 #   AGI_LOGS          預設 out/calls
+#   AGI_HEALTH        sweeper heartbeat，預設 out/agi.health.json
 #   AGI_PBX_DB        設為 1 → userman 名冊（需 AGI_SOURCE_DIRECTORY）
 #   AGI_SOURCE_DIRECTORY  userman_directories.name（例：PBX Internal Directory）
 #   AGI_DIRECTORY     名冊 JSON，預設 data/people.json（AGI_PBX_DB=0 時）
@@ -24,10 +25,24 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$ROOT"
 
 VENV_PY="$ROOT/.venv/bin/python"
+# .env 必須在下面抓 AGI_* 變數「之前」載入，否則 wrapper 讀不到 .env 的值
+# （2026-11-24 修：原本在 case 分支內才 source，AGI_PBX_DB／AGI_SOURCE_DIRECTORY
+# 放 .env 會靜默失效、服務掉回 JSON 名冊。注意：.env 值會蓋掉 inline 環境變數）。
+load_env() {
+  if [[ -f .env ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    . ./.env
+    set +a
+  fi
+}
+load_env
+
 PID_FILE="$ROOT/out/agi.pid"
 LOG_FILE="$ROOT/out/agi.log"
 LISTEN="${AGI_LISTEN:-127.0.0.1:4573}"
 LOGS="${AGI_LOGS:-out/calls}"
+HEALTH_FILE="${AGI_HEALTH:-out/agi.health.json}"
 DIRECTORY="${AGI_DIRECTORY:-data/people.json}"
 PBX_DB="${AGI_PBX_DB:-}"
 SOURCE_DIRECTORY="${AGI_SOURCE_DIRECTORY:-}"
@@ -37,15 +52,6 @@ PORT="${LISTEN##*:}"
 
 usage() {
   echo "usage: scripts/agi.sh {foreground|start|stop|restart|reload|status} [agi_server args...]" >&2
-}
-
-load_env() {
-  if [[ -f .env ]]; then
-    set -a
-    # shellcheck disable=SC1091
-    . ./.env
-    set +a
-  fi
 }
 
 is_running() {
@@ -66,6 +72,7 @@ server_args() {
     --listen "$LISTEN" \
     "${mode_args[@]}" \
     --logs "$LOGS" \
+    --health "$HEALTH_FILE" \
     "$@"
 }
 
@@ -82,7 +89,6 @@ shift || true
 case "$cmd" in
   foreground)
     require_venv
-    load_env
     mapfile -t args < <(server_args "$@")
     exec "${args[@]}"
     ;;
@@ -94,7 +100,6 @@ case "$cmd" in
     fi
     rm -f "$PID_FILE"
     require_venv
-    load_env
     mkdir -p "$(dirname "$PID_FILE")" "$(dirname "$LOG_FILE")" "$LOGS"
     mapfile -t args < <(server_args "$@")
     nohup "${args[@]}" >>"$LOG_FILE" 2>&1 &
@@ -162,14 +167,30 @@ case "$cmd" in
     ;;
 
   status)
+    rc=0
+    pid=""
     if is_running; then
-      echo "running: pid $(cat "$PID_FILE")  listen $LISTEN"
+      pid=$(cat "$PID_FILE")
+      echo "running: pid $pid  listen $LISTEN"
     else
       echo "stopped（$LISTEN）"
     fi
     if command -v ss >/dev/null 2>&1; then
       ss -ltnp 2>/dev/null | grep ":$PORT " || true
     fi
+    # sweeper 是 liveness 的一部分：heartbeat 太久沒更新 = 殭屍 session 永佔並發閘。
+    if [[ -x "$VENV_PY" ]]; then
+      if [[ -n "$pid" ]]; then
+        "$VENV_PY" -m dialname.health --health "$HEALTH_FILE" --pid "$pid" --logs "$LOGS" || rc=1
+      else
+        "$VENV_PY" -m dialname.health --health "$HEALTH_FILE" --logs "$LOGS" 2>/dev/null \
+          | grep '^jsonl:' || true
+      fi
+    else
+      echo "sweeper: unknown（找不到 $VENV_PY；請先 uv sync）" >&2
+      if [[ -n "$pid" ]]; then rc=1; fi
+    fi
+    exit "$rc"
     ;;
 
   -h|--help|help)

@@ -1,0 +1,137 @@
+[dbn-main]
+exten => s,1,Answer()
+ same => n,Set(DBN_ATTEMPT=1)
+ same => n,Set(DBN_SEQ=1)
+ same => n,Set(DBN_TRIES=0)
+ same => n,Set(DBN_CANDS=)
+ same => n,Set(DBN_REC_OPTS=o)
+ same => n,Set(DBN_SOUND=/var/lib/asterisk/sounds/dbn/zh)
+ ; DBN_OPERATOR 與下面 dept_* 的 queue 號碼都是範例，照你的 PBX 換
+ same => n,Set(DBN_OPERATOR=1000)
+ same => n,Set(DBN_SPEECH=)
+ same => n,Playback(${DBN_SOUND}/welcome)
+ same => n(rec),Set(DBN_SPEECH=)
+ ; 每輪重置：AGI 若靜默失敗（一個變數都沒送），落在 fallback → 總機，不沿用上一輪的動作
+ same => n,Set(DBN_ACTION=fallback)
+ same => n,Set(DBN_WAV=/var/lib/asterisk/dial-by-name/recordings/${UNIQUEID}-${DBN_SEQ})
+ ; silence=4s、max=10s、DBN_REC_OPTS=o 是按 0 轉總機（第二輪會清空）。不加 q 才會播 beep。
+ same => n,Record(${DBN_WAV}.wav,4,10,${DBN_REC_OPTS})
+ same => n,GotoIf($["${RECORD_STATUS}"="OPERATOR"]?operator)
+ same => n,GotoIf($["${RECORD_STATUS}"="HANGUP"]?done)
+ same => n,GotoIf($["${RECORD_STATUS}"="ERROR"]?retry)
+ same => n,Playback(${DBN_SOUND}/processing)
+ same => n,AGI(agi://127.0.0.1:4573,${DBN_WAV}.wav,${DBN_ATTEMPT},${DBN_CANDS})
+ same => n,GotoIf($["${AGISTATUS}"!="SUCCESS"]?operator)
+ same => n,GotoIf($["${DBN_ACTION}"="route"]?route)
+ same => n,GotoIf($["${DBN_ACTION}"="route_dept"]?dept_dispatch)
+ same => n,GotoIf($["${DBN_ACTION}"="ask"]?ask)
+ same => n,GotoIf($["${DBN_ACTION}"="retry"]?retry)
+ same => n,GotoIf($["${DBN_ACTION}"="hangup"]?hangup)
+ same => n,Goto(fallback)
+
+ same => n(hangup),GotoIf($["${DBN_SPEECH}"!=""]?hangup_play)
+ same => n,Set(DBN_SPEECH=goodbye)
+ same => n(hangup_play),Gosub(dbn-play-speech,s,1)
+ same => n,Hangup()
+
+ ; fallback：先播 decide() 給的說明（not-found），再轉總機。
+ ; 只有這一條會播 DBN_SPEECH；Dial 失敗／AGISTATUS／按 0 只播 to-operator，
+ ; 否則會把剛才播過的 transferring 再播一次。
+ same => n(fallback),GotoIf($["${DBN_SPEECH}"!=""]?fallback_play)
+ same => n,Goto(operator)
+ same => n(fallback_play),Gosub(dbn-play-speech,s,1)
+ same => n,Goto(operator)
+
+ same => n(ask),GotoIf($["${DBN_ATTEMPT}" >= "2"]?operator)
+ same => n,Set(DBN_ATTEMPT=$[${DBN_ATTEMPT}+1])
+ same => n,Gosub(dbn-play-speech,s,1)
+ same => n,Set(DBN_SEQ=$[${DBN_SEQ}+1])
+ ; 追問部門的那一輪不再提供按 0 逃生口（只能回答部門；兩次沉默仍會掛線）
+ ; 注意：「沒聽清楚」的重試走 (retry)，不經過這裡，仍保留按 0。
+ same => n,Set(DBN_REC_OPTS=)
+ same => n,GotoIf($["${DBN_ATTEMPT}" >= "2"]?ask_rec)
+ ; Background 才會收 DTMF；按 0 立刻轉總機，不必等錄音開始
+ same => n,Background(${DBN_SOUND}/q-operator)
+ same => n(ask_rec),Goto(rec)
+
+ same => n(retry),Set(DBN_TRIES=$[${DBN_TRIES}+1])
+ same => n,GotoIf($["${DBN_TRIES}" > "1"]?hangup)
+ same => n,Playback(${DBN_SOUND}/retry)
+ same => n,Set(DBN_SEQ=$[${DBN_SEQ}+1])
+ same => n,Goto(rec)
+
+ same => n(route),Gosub(dbn-play-speech,s,1)
+ same => n,Dial(Local/${DBN_TARGET}@from-internal,30)
+ same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)
+ same => n,Goto(operator)
+
+ same => n(dept_dispatch),GotoIf($["${DBN_DEPT}"="sales"]?dept_sales)
+ same => n,GotoIf($["${DBN_DEPT}"="cs"]?dept_cs)
+ same => n,GotoIf($["${DBN_DEPT}"="rd"]?dept_rd)
+ same => n,GotoIf($["${DBN_DEPT}"="fin"]?dept_fin)
+ same => n,GotoIf($["${DBN_DEPT}"="wh"]?dept_wh)
+ same => n,GotoIf($["${DBN_DEPT}"="adm"]?dept_adm)
+ same => n,GotoIf($["${DBN_DEPT}"="hr"]?dept_hr)
+ same => n,GotoIf($["${DBN_DEPT}"="it"]?dept_it)
+ same => n,Goto(operator)
+
+ same => n(dept_sales),Gosub(dbn-play-speech,s,1)
+ same => n,Dial(Local/2100@from-internal,30)
+ same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)
+ same => n,Goto(operator)
+
+ same => n(dept_cs),Gosub(dbn-play-speech,s,1)
+ same => n,Dial(Local/2200@from-internal,30)
+ same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)
+ same => n,Goto(operator)
+
+ same => n(dept_rd),Gosub(dbn-play-speech,s,1)
+ same => n,Dial(Local/3100@from-internal,30)
+ same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)
+ same => n,Goto(operator)
+
+ same => n(dept_fin),Gosub(dbn-play-speech,s,1)
+ same => n,Dial(Local/4100@from-internal,30)
+ same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)
+ same => n,Goto(operator)
+
+ same => n(dept_wh),Gosub(dbn-play-speech,s,1)
+ same => n,Dial(Local/5100@from-internal,30)
+ same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)
+ same => n,Goto(operator)
+
+ same => n(dept_adm),Gosub(dbn-play-speech,s,1)
+ same => n,Dial(Local/6100@from-internal,30)
+ same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)
+ same => n,Goto(operator)
+
+ same => n(dept_hr),Gosub(dbn-play-speech,s,1)
+ same => n,Dial(Local/6200@from-internal,30)
+ same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)
+ same => n,Goto(operator)
+
+ same => n(dept_it),Gosub(dbn-play-speech,s,1)
+ same => n,Dial(Local/7100@from-internal,30)
+ same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)
+ same => n,Goto(operator)
+
+ same => n(operator),Playback(${DBN_SOUND}/to-operator)
+ same => n,Dial(Local/${DBN_OPERATOR}@from-internal,30)
+ same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)
+ same => n,Playback(${DBN_SOUND}/goodbye)
+ same => n,Goto(done)
+ same => n(done),Hangup()
+
+ ; 只給澄清句的 Background 用：0 轉總機，其他按鍵忽略並繼續收音
+ exten => 0,1,Goto(s,operator)
+ exten => _X,1,Goto(s,rec)
+ exten => i,1,Goto(s,rec)
+
+[dbn-play-speech]
+exten => s,1,Set(DBN_IDX=1)
+ same => n(split),Set(DBN_CLIP=${CUT(DBN_SPEECH,&,${DBN_IDX})})
+ same => n,GotoIf($["${DBN_CLIP}"=""]?done)
+ same => n,Playback(${DBN_SOUND}/${DBN_CLIP})
+ same => n,Set(DBN_IDX=$[${DBN_IDX}+1])
+ same => n,Goto(split)
+ same => n(done),Return()

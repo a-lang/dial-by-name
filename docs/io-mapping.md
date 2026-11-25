@@ -1,5 +1,7 @@
 # 輸入 / 輸出對映（I/O Contract）
 
+> 角色：本檔是「JSONL 欄位、`DBN_*` 變數、Decision→PBX 對映（含 STT 錯誤分類 auth/ws）」的唯一來源；跨檔只指向、不複製。
+
 這份文件只回答一件事：**什麼進去、什麼出來、在哪一層發生**。所有數值都是
 `data/people.json`（40 人）實際跑出來的，可用 `uv run eval.py` 重現。
 
@@ -76,6 +78,12 @@ Decision(action, target, label, reason, speech: list[str], confidence, options)
 （`alias-ask`）；查無但發音像某人的名 → `fallback`（`alias-not-found`）→ 總機。
 亂句（不像任何人的名）仍走 `no-intent` → 掛線，不會被送進總機。
 
+**STT 失敗的 auth 映射（2026-11-25 裁定維持現狀）**：ElevenLabs Realtime 對壞 key 先在 WS
+事件層送 `auth_error`（HTTP 已 101），程式記 `stream.error=ws`／`stt_status=ws`，
+`stream.detail` 含 `auth_error`；握手層 401／403 或缺少 `ELEVENLABS_API_KEY` 才記 `auth`。
+兩者行為相同＝`fallback` → 總機，差別只在 JSONL 的 `stream.error`／`stream.detail`。
+`docs/dialplan.md` §3.9 有行為面摘要並指向本節。
+
 ---
 
 ## 4. 對映不是嚴格 1:1 的地方
@@ -84,7 +92,7 @@ Decision(action, target, label, reason, speech: list[str], confidence, options)
 |---|---|
 | 逐字稿 → 候選 **1:N** | 一句話收斂出最多 `top_k` 個候選（預設 20，決策只用前幾個） |
 | 候選 → 澄清句 **N:1** | 預設只播一句「請說全名」（不列姓名）；只有 `disclose_names=True` 時才退化成「N 選 1」（同姓或同音、且 ≥ top×0.8） |
-| `DBN_ACTION` 六值 → `Decision.action` 五值 | `retry` 是**傳輸層**值（空逐字稿／STT 失敗），不在 `Decision.action` 裡；由 `handle_turn()` 在呼叫 `decide()` 之前直接產生，上限由 dialplan 的 `DBN_TRIES` 決定（見 `docs/dialplan.md` §3.9） |
+| `DBN_ACTION` 六值 → `Decision.action` 五值 | `retry` 是**傳輸層**值（空逐字稿／STT 失敗／Realtime 無 commit 且無 partial＝沉默），不在 `Decision.action` 裡；由 `handle_result()`（生產）或 `handle_turn()`（離線工具）在呼叫 `decide()` 之前直接產生，上限由 dialplan 的 `DBN_TRIES` 決定（見 `docs/dialplan.md` §3.9） |
 
 ---
 

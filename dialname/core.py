@@ -29,7 +29,7 @@ _T2S = opencc.OpenCC("t2s")
 _S2T = opencc.OpenCC("s2t")
 
 CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
-PUNCT_RE = re.compile(r"[\s\u3000,，。、;；:：!！?？()（）\[\]【】\"'“”‘’·…~～\-—_/\\|]+")
+PUNCT_RE = re.compile(r"[\s\u3000,，。.、;；:：!！?？()（）\[\]【】\"'“”‘’·…~～\-—_/\\|]+")
 ASCII_RUN_RE = re.compile(r"[a-z0-9]+")
 DEPT_ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 

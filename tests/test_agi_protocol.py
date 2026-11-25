@@ -8,20 +8,23 @@ import io
 from dialname.agi import AgiSession, run_session
 
 
-def test_run_session_reads_env_and_sets_six_vars():
+def test_result_verb_sets_six_vars():
     env = (
         b"agi_request: agi://127.0.0.1:4573\n"
         b"agi_uniqueid: 123.45\n"
-        b"agi_arg_1: /tmp/a.wav\n"
-        b"agi_arg_2: 2\n"
-        b"agi_arg_3: u001:0.900&u002:0.800\n\n"
+        b"agi_arg_1: result\n"
+        b"agi_arg_2: /tmp/a.wav\n"
+        b"agi_arg_3: 123.45\n"
+        b"agi_arg_4: 2\n"
+        b"agi_arg_5: 1\n"
+        b"agi_arg_6: u001:0.900&u002:0.800\n\n"
     )
     rfile = io.BytesIO(env + b"200 result=1\n" * 6)
     wfile = io.BytesIO()
     seen = {}
 
-    def handler(wav, attempt, prev_pids=None, call_id=None):
-        seen.update(wav=wav, attempt=attempt, prev_pids=prev_pids, call_id=call_id)
+    def handler(env):
+        seen.update(env)
         return {
             "action": "route_dept",
             "target": "sales",
@@ -31,10 +34,10 @@ def test_run_session_reads_env_and_sets_six_vars():
             "cands": "",
         }
 
-    run_session(AgiSession(rfile, wfile), handler=handler)
+    run_session(AgiSession(rfile, wfile), handlers={"result": handler})
 
-    assert seen == {"wav": "/tmp/a.wav", "attempt": "2", "call_id": "123.45",
-                    "prev_pids": "u001:0.900&u002:0.800"}
+    assert seen["agi_arg_2"] == "/tmp/a.wav"
+    assert seen["agi_arg_6"] == "u001:0.900&u002:0.800"
     out = wfile.getvalue().decode()
     for line in (
         'SET VARIABLE DBN_ACTION "route_dept"',
@@ -47,15 +50,37 @@ def test_run_session_reads_env_and_sets_six_vars():
         assert line in out
 
 
-def test_run_session_requires_wav():
-    rfile = io.BytesIO(b"agi_uniqueid: 1\n\n")
+def test_start_verb_sets_no_vars():
+    """start 立即返回；成功或失敗都不寫通道變數（dialplan 已預設 fallback）。"""
+    env = (
+        b"agi_uniqueid: 123.45\n"
+        b"agi_arg_1: start\n"
+        b"agi_arg_2: /tmp/a-1-in.wav\n"
+        b"agi_arg_3: 123.45\n"
+        b"agi_arg_4: 1\n\n"
+    )
+    wfile = io.BytesIO()
+    seen = {}
+
+    def handler(env):
+        seen.update(env)
+        return None
+
+    run_session(AgiSession(io.BytesIO(env), wfile), handlers={"start": handler})
+    assert seen["agi_arg_1"] == "start"
+    assert wfile.getvalue() == b""
+
+
+def test_unknown_verb_is_rejected():
+    rfile = io.BytesIO(b"agi_arg_1: legacy\n\n")
     wfile = io.BytesIO()
     try:
-        run_session(AgiSession(rfile, wfile), handler=lambda *a, **k: {})
+        run_session(AgiSession(rfile, wfile), handlers={"start": lambda env: None,
+                                                        "result": lambda env: {}})
     except Exception as exc:  # AgiProtocolError
-        assert "agi_arg_1" in str(exc)
+        assert "legacy" in str(exc)
     else:  # pragma: no cover
-        raise AssertionError("missing wav should raise")
+        raise AssertionError("unknown verb should raise")
 
 
 def test_empty_value_is_quoted():

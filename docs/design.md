@@ -1,5 +1,7 @@
 # 設計與理由
 
+> 角色：本檔是「設計理由、指標定義、門檻取值依據」的唯一來源；跨檔只指向、不複製。
+
 這份文件取代開發日誌的角色：**只寫現行的設計、為什麼是這樣、以及改動時必須維持什麼**。
 逐日取捨脈絡與真實評測紀錄留在維護者的私有 archive；對外的版本變更見 `CHANGELOG.md`。
 
@@ -324,8 +326,8 @@ uv run python tests/test_eval_golden.py --write  # 重寫兩份 hash
 - repo 內**不含任何音檔**；`sounds/zh/` 只是決策層的 clip key 命名空間。
 - 提示音共 19 支，8 kHz／mono／16-bit、檔名 ASCII；清單的單一真相是
   `scripts/check_sounds.py` 的 `EXPECTED`。
-- 部署前用 `uv run scripts/check_sounds.py <暫存目錄>` 驗證，再 `rsync` 到
-  `/var/lib/asterisk/sounds/dbn/zh/`。少了 `dbn/` 這一層，`Playback` 會全無聲且沒有明顯報錯。
+- 部署、格式驗證與上傳到 `/var/lib/asterisk/sounds/dbn/zh/` 的程序見 `docs/dialplan.md` §1。
+  少了 `dbn/` 這一層，`Playback` 會全無聲且沒有明顯報錯。
 
 ### 7.2 隱私：預設不念姓名
 

@@ -1,5 +1,7 @@
 # dial-by-name：說姓名 → 轉分機（中文姓名的同音消歧參考實作）
 
+> 角色：本檔是「從零到撥通的主線順序、服務啟停（手動＝正式＋systemd 選用）與本機開發工具」的唯一來源；跨檔只指向、不複製。
+
 FreePBX／Asterisk 用的「姓名 → 分機」比對層。來電者說出名字，系統撥接到對應分機，
 **不播報號碼、不念姓名**。
 
@@ -11,7 +13,37 @@ FreePBX／Asterisk 用的「姓名 → 分機」比對層。來電者說出名�
 
 ---
 
-## 快速開始
+## 文件地圖
+
+| 想知道 | 讀 |
+|---|---|
+| 從零到能撥通（主線順序） | 本檔「快速開始」 |
+| PBX 部署、音檔、驗收、人員異動 | `docs/dialplan.md` |
+| 設計理由、門檻依據 | `docs/design.md` |
+| 名詞、欄位、常數 | `docs/glossary.md` |
+| JSONL／`DBN_*`／決策→dialplan 對映 | `docs/io-mapping.md` |
+| 20 通劇本協議 | `docs/calls.md` |
+| 公開版來源 | `docs/provenance.md` |
+
+---
+
+## 快速開始：從零到撥通
+
+主線只有順序，細節都在指到的章節；沒綠的決策層不要接電話。
+
+1. `uv sync` — 建立本機環境（依 pyproject＋uv.lock）。
+2. `uv run pytest -q && uv run eval.py` — L0／L1 與 342 題指標先綠，沒綠別碰電話。
+3. 部署樹 rsync 到 PBX（不含 `.venv`／`out`／`.env`／`recordings`）→ `docs/dialplan.md` §1
+4. 建 `recordings/`、`out/calls/` 並做權限 probe → `docs/dialplan.md` §1
+5. 提示音 19 支放上 `/var/lib/asterisk/sounds/dbn/zh/` → `docs/dialplan.md` §1
+6. `.env`（`ELEVENLABS_API_KEY` 等；600）→ `docs/dialplan.md` §1.1
+7. 貼 `[dbn-main]`／`[dbn-play-speech]` dialplan＋reload → `docs/dialplan.md` §2
+8. `scripts/agi.sh start`＋金絲雀驗證 → 本檔「服務管理與開機自啟」
+9. 冒煙一通：先跑 §3.8 的 STT／決策管線檢查，再以 Local channel 撥入 `dbn-main` 演練 → `docs/dialplan.md` §3.8
+
+之後：20 通劇本照 `docs/calls.md` 撥與判；人員異動 SOP 在 `docs/dialplan.md` §3.5／§4。
+
+### 本機工具
 
 ```bash
 uv sync                                        # 建立 .venv 並安裝依賴（依 pyproject.toml + uv.lock）
@@ -30,6 +62,107 @@ uv run scripts/calls.py check                  # 只跑 L1（18 通 auto＋3 個
 
 ---
 
+## 服務管理與開機自啟
+
+### 現狀
+
+正式運行模式＝手動 `scripts/agi.sh`（2026-11-25 裁定：不實裝 systemd unit）。
+**重開機不會自動起服務**；開機後需手動 `scripts/agi.sh start`。
+
+### 手動方式（正式模式）
+
+```bash
+# 啟動／停止／重啟（.env 已固化 userman 設定：AGI_PBX_DB=1、AGI_SOURCE_DIRECTORY="Test Directory"）
+scripts/agi.sh start
+scripts/agi.sh restart       # 改程式碼、換 AGI_LOGS、改 .env 後用
+scripts/agi.sh reload        # SIGHUP：原子重載名冊（userman／aliases.json 異動後用；不換程式碼）
+scripts/agi.sh stop
+
+# 狀態（可腳本判定：running 但 sweeper 不健康 → 非零退出碼）
+scripts/agi.sh status
+
+# 驗收場次專屬日誌（撥打前設置，勿與生產日誌共用）
+AGI_LOGS=out/calls/test-YYYYMMDD scripts/agi.sh restart
+```
+
+每次啟動／重啟後的金絲雀驗證：
+
+```bash
+tail -n 5 out/agi.log   # 必須看到 roster: source='Test Directory' people=N aliases=M
+```
+
+指令之外的語意（`scripts/agi.sh`）：
+
+- `foreground`＝前景執行，Ctrl+C 停止、log 直接看；背景模式 PID 寫 `out/agi.pid`、log 寫 `out/agi.log`。
+- 預設 listen `127.0.0.1:4573`；換埠 `AGI_LISTEN=127.0.0.1:4574 scripts/agi.sh start`。
+- 換名冊（臨時驗收）：`AGI_DIRECTORY=/path/to/roster.json scripts/agi.sh start`。**systemd 不讀這個變數**——那條路的 `--directory` 寫在 unit 的 `ExecStart`，要改 unit 或加 drop-in。
+- userman 模式：`AGI_PBX_DB=1 AGI_SOURCE_DIRECTORY='<你的 directory 名>' scripts/agi.sh start`
+  （`AGI_ALIASES`／`AGI_DEPARTMENTS` 可換路徑）；回滾＝拿掉 `AGI_PBX_DB` 重啟。
+  換其他名冊只改 `--source-directory` 一個值，補撥 2–3 通驗證即可。
+- 名冊旗標（手動與 systemd 的 `ExecStart` 同一組）：
+  `--pbx-db --source-directory '<你的 directory 名>' --aliases data/aliases.json --departments data/departments.json`。
+- 若 `.env` 存在會自動 source，key 不進指令行、不進 shell 歷史；其他參數原樣傳給
+  `agi_server.py`（例 `--health out/agi.health.json`）。
+- `status` 除了 PID／port，也讀 `out/agi.health.json`（sweeper 每 1 秒寫一次）：
+  heartbeat 超過 5 秒沒更新、pid 不符或檔不存在 → `sweeper: DEAD`，退出碼 1；
+  `active` 是當下的 session 數，`jsonl:` 是最新一輪的 `ts`。sweeper 死掉時行程與 port
+  可能都還在，但過期 session 會永佔並發閘——所以它算 liveness，不是加分項。
+  `AGI_HEALTH` 可換 heartbeat 路徑（預設 `out/agi.health.json`）。
+- `reload` 只支援 `start` 的背景模式（要有 `out/agi.log`）：腳本送 HUP 後等 10 秒，
+  抓最新一筆 `reload ok|failed`；`reload failed` 時服務仍在跑（舊索引），退出碼 1。
+  SIGHUP 只換名冊，**進行中的 session 不重置**（`TurnManager` 跨 reload 存活）。
+- 背景模式看 log：`tail -f out/agi.log`。
+- **不要和 systemd 同時跑**（port 衝突）。手動模式是正式模式，重開機不會自動起。
+
+### systemd（選用，開機自啟）
+
+```ini
+# /etc/systemd/system/dial-by-name-agi.service
+[Unit]
+Description=dial-by-name FastAGI (Realtime STT, Test Directory roster)
+After=network.target
+
+[Service]
+Type=simple
+User=asterisk
+Group=asterisk
+WorkingDirectory=/var/lib/asterisk/dial-by-name
+EnvironmentFile=/var/lib/asterisk/dial-by-name/.env
+ExecStart=/var/lib/asterisk/dial-by-name/.venv/bin/python agi_server.py \
+  --pbx-db --source-directory "Test Directory" \
+  --logs out/calls --health out/agi.health.json
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+安裝與驗證：
+
+```bash
+sudo cp dial-by-name-agi.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now dial-by-name-agi
+systemctl --no-pager status dial-by-name-agi   # 權威：active (running)
+scripts/agi.sh status                          # 只看 sweeper 段（pid 檔不認 systemd 進程，會顯示 stopped）
+grep "roster: source" out/agi.log | tail -1    # 金絲雀：people=13
+```
+
+注意事項：
+
+- `EnvironmentFile` 只為 `ELEVENLABS_API_KEY`（`.env` 權限 600、owner asterisk）；
+  名冊模式由 `ExecStart` 的 flag 決定，`AGI_*` 環境變數是 wrapper 專用。
+- `ExecReload` SIGHUP＝只換名冊；**改程式碼仍需 restart**（新進程）。
+- `Restart=on-failure` 是對無聲死亡的防護，不是萬靈丹——systemd 模式的權威是
+  `systemctl status`，手動模式的權威是 `scripts/agi.sh status`。
+- `scripts/agi.sh status` 的 pid 判定讀 `out/agi.pid`（只有 `agi.sh start` 會寫）：
+  systemd 起的進程在它眼裡是 `stopped`；同一段輸出裡的 `ss` 監聽行與 sweeper heartbeat 仍有效。
+- DB 連線走 `/etc/freepbx.conf` fallback；要唯讀帳號就補 `DBN_MYSQL_*` 四鍵到 `.env`。
+- 本節是 systemd unit 與服務啟停的單一來源；`docs/dialplan.md` §3.5 只記部署面（權限、人員異動 SOP）並指向本章。
+
+---
+
 ## 音檔：本 repo 不含提示音
 
 系統會播 19 支提示音（`welcome`、`processing`、`retry`、`q-*`、`dept-*`、`transferring`…）。
@@ -40,10 +173,10 @@ uv run scripts/calls.py check                  # 只跑 L1（18 通 auto＋3 個
 | 數量與格式 | 19 支 `.wav`，**8 kHz／mono／16-bit**，檔名純 ASCII |
 | 清單 | 單一真相是 `scripts/check_sounds.py` 的 `EXPECTED`（不要另外抄一份） |
 | 部署位置 | **`/var/lib/asterisk/sounds/dbn/zh/`**（由 dialplan 的 `DBN_SOUND` 決定） |
-| 驗證 | `uv run scripts/check_sounds.py <你的暫存目錄>`（缺檔／格式錯／非 ASCII 都會列出來） |
+| 驗證（開發端） | `uv run scripts/check_sounds.py <你的暫存目錄>`（缺檔／格式錯／非 ASCII 都會列出來） |
 
-少了 `dbn/` 這一層（只放到 `/var/lib/asterisk/sounds/zh/`）的後果是 `Playback` **全無聲、
-且沒有明顯報錯**——這是最常見的部署錯誤。
+上傳到 PBX 的指令、目錄與權限見 `docs/dialplan.md` §1。少了 `dbn/` 這一層（只放到
+`/var/lib/asterisk/sounds/zh/`）的後果是 `Playback` **全無聲、且沒有明顯報錯**——這是最常見的部署錯誤。
 
 clip key 的三段對照：
 
@@ -69,8 +202,9 @@ clip key 的三段對照：
         FastAGI 127.0.0.1:4573        ── agi_server.py（threaded，SIGHUP 原子重載）
              │
              ▼
-        handle_turn(wav, attempt, cands)   ── dialname/agi.py
-             │  ① STT（ElevenLabs Scribe v2）→ 逐字稿
+        AGI start / result   ── dialname/agi.py（兩相）
+             │  start：旁路 wav 登記 session，立即返回（不設通道變數）
+             │  result：① tail 旁路 wav → Realtime STT（ElevenLabs）→ 逐字稿
              │  ② core：正規化 → 拼音 → 模糊音 → top-8 候選（1–3 ms）
              │  ③ decision.decide()：轉／問一句／交總機
              ▼
@@ -81,18 +215,21 @@ clip key 的三段對照：
 ```
 
 **AGI 只做 STT＋決策**；收音、播音、轉接、回合計數全在 dialplan。這個切法的好處是
-通話狀態只有一處（dialplan），AGI 是無狀態的單輪處理器，壞掉時 dialplan 有安全網
-（`AGISTATUS` → 總機）。
+**跨輪**通話狀態只有一處（dialplan）；AGI 只在一輪之內保存 session（`start` 登記、`result` 收工，
+過期 session 與 wav 由 TTL 20 秒的 sweeper 清），壞掉時 dialplan 有安全網（`AGISTATUS` → 總機）。
 
-實際部署見 `docs/dialplan.md`（含 systemd unit、手動驗收清單、人員異動 SOP）。
+實際部署見 `docs/dialplan.md`（手動驗收清單、人員異動 SOP）；服務啟停與（選用）systemd unit 見上面的「服務管理與開機自啟」。
 
 ### 檔案佈局
 
 ```
 dialname/core.py           正規化、拼音變體、模糊音、評分、索引桶、部門解析、澄清判斷
 dialname/decision.py       決策樹 decide()、clarify_plan、姓名音檔命名（clip_hash／manifest）
-dialname/agi.py            單輪 AGI 處理器＋薄協議層（不碰電話層）
-dialname/stt_client.py     ElevenLabs Scribe v2 adapter（wav → Transcript）
+dialname/agi.py            AGI 兩相處理器（start／result）＋薄協議層（不碰電話層）
+dialname/stt_client.py     ElevenLabs Scribe v2 批次 adapter（wav → Transcript）
+dialname/stt_realtime.py   ElevenLabs Realtime WS client（PCM 串流／事件解析／錯誤分類）
+dialname/turns.py          TurnManager：一輪一 session、WAV tail、TTL sweeper
+dialname/health.py         sweeper heartbeat／status 判定（out/agi.health.json）
 dialname/pbx_directory.py  正式名冊入口：userman＋aliases.json＋departments.json
 agi_server.py  eval.py  trace.py  demo.py  stt_batch.py
 docs/design.md             設計與理由（不變式、決策順序、門檻、外部模型、名冊、回歸）
@@ -105,7 +242,7 @@ data/people.json           40 人／8 部門的合成示範名冊
 data/departments.json      8 部門定義（dept_id 契約）
 data/call_script.json      20 通劇本的機器判定
 scripts/                   agi.sh／calls.py／check_sounds.py／check_aliases.py／jev_probe.py／install-hooks.sh
-tests/                     200 個 pytest（L0 golden、L1 劇本、AGI、名冊、alias 政策…）
+tests/                     241 個 pytest（L0 golden、L1 劇本、AGI、Realtime、名冊、alias 政策…）
 ```
 
 ---
@@ -240,9 +377,11 @@ C 是純 margin 檢查抓不到的：分數差看起來安全，但兩個人**�
 - **keyterms 未啟用**：ElevenLabs 的 keyterms 可用來 bias 辨識，但模型輸出簡體、
   送繁體 keyterm 可能白費；需要 A/B 驗證（`stt_batch.py --audio-dir … --truth …` 三組共用同一份 truth）。
 - **`disclose_names=True` 未完整**：見上面的音檔章節。
-- **STT 全斷（timeout）沒有 fast-fail**：要等兩次 timeout 才掛線；401／403 依 PoC 立場直接掛線
-  （正式部署應改為落到人，理由與取捨見 `docs/design.md` §7 與 `docs/dialplan.md` §3.9）。
-- **同部門同音兄弟**：示範名冊的同音對都刻意跨部門，沒有同部門同音對可測。
+- **STT 全斷沒有 fast-fail**：WS 連不上／中斷且無 transcript → `fallback`／`stream-error` → 總機；
+  `result` 端總預算 3 秒（`RESULT_TIMEOUT`），沒有熔斷、沒有指數退避。401／403 與壞 key
+  一律落總機（2026-11-23 翻案 PoC 的掛線；`auth`／`ws` 分界見 `docs/io-mapping.md` §3）。
+- **同部門同音兄弟**：示範名冊的同音對都刻意跨部門，沒有同部門同音對可測；真機第二場
+  遇到同部門同音時行為＝`homophone-unresolvable` → 總機（安全拒猜），合成測資未覆蓋。
 - **Go 移植**只有對照表（`docs/design.md` §3 的常數是唯一來源），沒有實作。
 
 ---

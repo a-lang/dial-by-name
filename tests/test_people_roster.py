@@ -71,6 +71,28 @@ def test_homophone_aliases_ask_department_with_surrounding_words(roster):
     assert dec.reason == "alias-ask"
 
 
+def test_ascii_period_run_after_interjection(roster):
+    """STT 常吐「呃......」再接姓名：句點不剝掉會讓後續前綴／稱謂全失效。
+
+    2026-11-25 實撥：Realtime 逐字稿「呃......徐先生。」「啊......鄭博文。」——
+    ASCII `.` 不在 `PUNCT_RE` 裡，`normalize()` 之後殘留「呃......」，於是
+    `_strip_fillers` 剝掉「呃」就停在 `.`，姓名檢索 0 候選（部門偵測是子字串掃描，
+    不受影響，所以症狀是「部門聽得到、人找不到」）。
+    """
+    dec = _decide(roster, "呃......王先生。")
+    assert dec.action == "fallback"
+    assert dec.reason == "surname-only"
+
+    dec = _decide(roster, "啊......鄭博文。")
+    assert dec.action == "route"
+    assert dec.target == "3104"
+    assert dec.reason == "direct:confident"
+
+    dec = _decide(roster, "呃......阿明。")
+    assert dec.action == "route"
+    assert dec.target == "3102"
+
+
 def test_low_confidence_single_candidate_goes_operator(roster):
     """「小米」0.51 命中王小明：只有一個候選也不該轉給陌生人（2026-11-17 驗收）。
 

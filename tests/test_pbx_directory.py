@@ -342,7 +342,8 @@ def test_agi_server_rejects_inconsistent_flags(argv):
 # 閘門 6：SIGHUP 重載
 # --------------------------------------------------------------------------- #
 def _state(build):
-    current = agi_server.make_current(load_directory(PEOPLE_PATH), stt=object(), log_dir="out/calls")
+    current = agi_server.make_current(load_directory(PEOPLE_PATH), manager=object(),
+                                      log_dir="out/calls")
     return agi_server.State(current=current, log_dir="out/calls", build=build)
 
 
@@ -369,14 +370,14 @@ def test_reload_success_swaps_directory_and_handler(tmp_path, caplog):
             tmp_path, {"source_directory": SRC, "aliases": [{"user_id": "12", "aliases": ["小美"]}]}
         ),
     )
-    state = _state(lambda: agi_server.make_current(new_dir, stt=object(), log_dir="out/calls"))
+    state = _state(lambda: agi_server.make_current(new_dir, manager=object(), log_dir="out/calls"))
     old = state.current
     with caplog.at_level(logging.INFO, logger="dialname.agi"):
         assert agi_server.apply_reload(state) is True
     assert state.current is not old
     assert state.current.directory is new_dir
-    # handle_turn 必須綁新索引，不能只換 state.directory
-    assert state.current.handler.keywords["directory"] is new_dir
+    # result handler 必須綁新索引，不能只換 state.current.directory
+    assert state.current.handlers["result"].keywords["directory"] is new_dir
     was = sum(len(p.aliases) for p in old.directory.people)
     assert f"reload ok: people=1 aliases=1 (was {was})" in caplog.text
 

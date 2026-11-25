@@ -8,6 +8,37 @@
 
 ## [Unreleased]
 
+### Added
+
+- README：新增「服務管理與開機自啟」章節——手動 `scripts/agi.sh` 為正式模式（2026-11-25 裁定不實裝 unit），
+  另載選用 systemd unit 全文與安裝驗證步驟。
+- FastAGI 兩相協議：`AGI(...,start,...)` 登記旁路 session 並立即返回，
+  `AGI(...,result,...)` 等 transcript（≤3 秒）、決策、回寫六個 `DBN_*`。
+- TTL sweeper：沒走到 `result` 的分支（按 0／掛斷／錄音錯誤／閘滿 stub）在 20 秒後
+  close WS 並刪除旁路檔與 `Record` 檔；`out/agi.health.json` heartbeat 供
+  `scripts/agi.sh status` 判定 sweeper 存活（含 active session 數與最近 JSONL 時間）。
+
+### Changed
+
+- **STT 改邊錄旁路（Realtime）**：dialplan 只新增三行（`start` AGI、`MixMonitor(,r(...))`、
+  無條件 `StopMixMonitor`），`Record(...,4,10,...)` 與 beep／靜音／`#`／按 0 語意不變。
+- **401／403 改落總機**（原 PoC 為 `hangup`）：系統故障必須落到人。
+  沉默來電（無 commit 且無 partial）仍走 `retry`，不灌總機。
+- 通話 wav 在 `result` 或 TTL 到期即刪；JSONL 保留檔名（`eval.py --calls` join key）。
+- 文件同步 Phase C：calls.md 收證步驟（wav 即刪下不再拉 `recordings/`）、dialplan.md §3.5
+  指向 README、AGENTS/README 狀態標頭（兩相 AGI＋Realtime）、auth 映射維持現狀之註記。
+
+### Removed
+
+- `agi_server.py` 的 `--stt-timeout`／批次 `SttClient` 依賴（離線工具仍用 `handle_turn`）。
+
+### Fixed
+
+- **`normalize()` 的 `PUNCT_RE` 補 ASCII 句點 `.`**：Realtime STT 常輸出
+  「呃......徐先生。」「啊......鄭博文。」，`normalize()` 之後殘留「呃......」，
+  `_strip_fillers` 剝掉「呃」便停在 `.`，`NOISE_PREFIXES`／稱謂／姓氏前綴全部失效，
+  姓名檢索 0 候選（部門偵測是子字串掃描，不受影響）。342 題指標與 20 通劇本不變。
+
 ## [0.1.0] — 2026-11-24
 
 首次公開。這個版本是從內部 PoC 抽取的（來源與範圍見 `docs/provenance.md`），

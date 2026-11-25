@@ -1,5 +1,7 @@
 # 20 通撥號劇本：協議與判準
 
+> 角色：本檔是「20 通劇本協議與判準（合成冊場次）」的唯一來源；跨檔只指向、不複製。
+
 > 機器判定在 `data/call_script.json`（單一來源）；這份文件是**人**照著撥、照著判的協議。
 > 表格由 `uv run scripts/calls.py table` 產生，`tests/test_call_script.py::test_calls_md_table_in_sync`
 > 會斷言它與 JSON 一致。
@@ -68,8 +70,8 @@
 3. **`stt_status`**：只存在 JSONL（`out/calls/*.jsonl`）。非 `ok` 時**先看是不是重試路徑**
    （`stt-empty`／`stt-error`／`timeout`／`401`），不要拿它去解釋決策漂移。
 
-決策漂移一律算失敗。電話層落點（`fallback` 轉總機、401 掛線）見 `docs/dialplan.md` §3.9 與
-`docs/io-mapping.md`。
+決策漂移一律算失敗。電話層落點（`fallback` 轉總機、401／403 落總機）見 `docs/dialplan.md` §3.9 與
+`docs/io-mapping.md` §3。
 
 ### 3.2 STT 崩壞（可操作定義）
 
@@ -109,6 +111,8 @@
 
 `truth.csv` 只服務 `eval.py --calls`（算 STT／檢索指標），**不是** 20 通的判準；20 通照 §3 判。
 只收 #1–10、15–18。`calls.py truth-out` 會依撥號順序產生，`file` 欄位取自日誌的 wav 檔名；
+**wav 檔名僅作 join key，實體檔案已即時刪除**（`docs/dialplan.md` §3.9 的 wav 即刪政策），
+`eval.py --calls` 只讀 JSONL 的 `stt.text`，不需要音檔。
 下表只列答案卡內容。實際 CSV 欄位是 `file,truth_text,expect_pid,kind,dept_expect`。
 
 | # | truth_text | expect_pid | kind | dept_expect |
@@ -144,7 +148,7 @@
 
 | 項目 | 為什麼 20 通沒覆蓋 |
 |---|---|
-| 401／403 | key 失效走 `hangup`／`stt-auth`；20 通都在 key 正常下撥。操作測試另行（`.env` 註解 key）。 |
+| 401／403 | key 失效走 `fallback` → 總機（`docs/io-mapping.md` §3）；20 通都在 key 正常下撥。操作測試另行（`.env` 註解 key），判準見 `docs/dialplan.md` §4.2。 |
 | `Dial` 失敗 | 分機不存在／忙線 → 轉總機。對 queue 目的地**不會觸發**（queue 立刻應答，`DIALSTATUS=ANSWER`），必須實撥才知道。 |
 | `RECORD_STATUS=ERROR` | 錄音本身失敗，吃掉同一份 `DBN_TRIES` 預算；20 通假設錄音成功。除錯先看 JSONL 的 `wav_duration_ms` 是否 `null`。 |
 | 英文 alias | 名冊有 `David Wang`／`Amy Chen`／`Kevin` 等英文 alias；20 通只驗中文 alias（阿明／小美／筱美／小米）與中文姓名，英文 STT 拼法與大小寫未驗。 |
@@ -155,7 +159,7 @@
 前置：PBX 已同步本版程式並重啟 AGI；`docs/dialplan.md` §3.8 冒煙通過；本機
 `uv run scripts/calls.py check` 已是 exit 0。決策層沒綠就撥，只會把程式問題記成 STT 問題。
 
-1. **撥號前先設本次場次專屬日誌**（在 PBX 的專案根目錄）。不要和生產日誌共用檔案：
+1. **撥號前先設本次場次專屬日誌**（在 PBX 的部署樹 `/var/lib/asterisk/dial-by-name/`）。不要和生產日誌共用檔案：
    真實來電會插入、跨午夜會散成兩檔、重撥是新 `call_id`，`compare` 一定錯位。
 
    ```bash
@@ -166,17 +170,22 @@
 
    > 場次目錄就是定案做法（沿用既有 `AGI_LOGS`，不新增 `DBN_LOG`、不改 `agi.py`）；
    > 檔名仍是 `YYYYMMDD.jsonl`，`compare` 對目錄會依檔名排序合併（跨午夜散兩檔也對齊）。
-   > systemd 部署把 unit（或 drop-in）的 `--logs` 指到同一個場次目錄。
+   > 正式模式＝手動 `scripts/agi.sh`；選用 systemd（見 README「服務管理與開機自啟」）時
+   > 把 `--logs` 指到同一個場次目錄。
 
 2. **照 §2 撥 20 通**（順序 1→20）：兩輪案例等追問再念第二輪；#19 兩次不出聲；#20 錄音中按 0。
    每通記下 `UNIQUEID`（JSONL 的 `call_id` 或 wav 檔名），重撥也記。
 
-3. **拉回本機**（PBX 上的檔案先留著，別邊拉邊刪）：
+3. **拉回本機的場次日誌**（只拉日誌目錄；wav 不拉）：
 
    ```bash
-   rsync -av pbx:/home/pbx/dial-by-name/recordings/ recordings/
-   rsync -av pbx:/home/pbx/dial-by-name/out/calls/test-YYYYMMDD/ out/calls/test-YYYYMMDD/
+   rsync -av asterisk@my-ipbx2025:/var/lib/asterisk/dial-by-name/out/calls/test-YYYYMMDD/ out/calls/test-YYYYMMDD/
    ```
+
+   > **錄音檔即時刪除（隱私政策）**：`result` 與 TTL sweeper 在服務內就刪掉兩支 wav，
+   > PBX 的 `recordings/` 沒有東西可拉，本步驟不拉 `recordings/`。場次目錄裡的
+   > `asterisk-dbnp.log` 供電話層落點核對（`Dial`／`answered` 行），`agi.log` 是 AGI 端日誌。
+   > 日誌先留著，別邊拉邊刪（漂移要回頭查原始行）。
 
 4. **對劇本**：
 

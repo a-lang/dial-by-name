@@ -1,5 +1,7 @@
 # Dialplan：AGI 只做 STT＋決策，其餘交給 FreePBX
 
+> 角色：本檔是「PBX 部署、目錄、音檔、dialplan 貼法、驗收清單、人員異動 SOP」的唯一來源；跨檔只指向、不複製。
+
 > 這份片段由使用者**手動**貼進 `/etc/asterisk/extensions_custom.conf`，agent 不遠端改 PBX。
 > 規則：`;` 之後可以是中文註解，**其餘一律 ASCII**（`tests/test_dialplan_ascii.py` 會驗）。
 
@@ -7,10 +9,10 @@
 
 | 項目     | 指令／說明                                                                                                            |
 | -------- | --------------------------------------------------------------------------------------------------------------------- |
-| 音檔     | 本 repo **不含音檔**：自備 19 支提示音（8 kHz／mono／16-bit、檔名 ASCII），先 `uv run scripts/check_sounds.py <暫存目錄>` 驗證，再 `rsync -av <暫存目錄>/ pbx:/var/lib/asterisk/sounds/dbn/zh/`——**`dbn/` 這一層不能省**，它必須與 §2 的 `DBN_SOUND` 逐字一致（少一層＝`Playback` 全無聲且無明顯報錯） |
+| 音檔     | 本 repo **不含音檔**：自備 19 支提示音（8 kHz／mono／16-bit、檔名 ASCII），先 `uv run scripts/check_sounds.py <暫存目錄>` 驗證，再 `rsync -av <暫存目錄>/ asterisk@my-ipbx2025:/var/lib/asterisk/sounds/dbn/zh/`——**`dbn/` 這一層不能省**，它必須與 §2 的 `DBN_SOUND` 逐字一致（少一層＝`Playback` 全無聲且無明顯報錯） |
 | `.env`   | 專案根目錄；`ELEVENLABS_API_KEY`（＋ userman 模式的 `DBN_MYSQL_*`）；`chmod 600`、不進版控（見 §1.1）                                |
-| 錄音目錄 | `mkdir -p /home/pbx/dial-by-name/recordings && chown asterisk:asterisk … && chmod 0770 …`                             |
-| 日誌目錄 | `mkdir -p /home/pbx/dial-by-name/out/calls && chown <agi-user>:asterisk …`                                            |
+| 錄音目錄 | `mkdir -p /var/lib/asterisk/dial-by-name/recordings && chown asterisk:asterisk … && chmod 0770 …`（服務在 `result` 或 TTL 到期時刪 wav；目錄只用來放暫存檔）                             |
+| 日誌目錄 | `mkdir -p /var/lib/asterisk/dial-by-name/out/calls && chown <agi-user>:asterisk …`                                            |
 | 權限驗證 | `sudo -u asterisk touch recordings/.probe && rm recordings/.probe`；`out/calls` 同樣做一次                            |
 | 總機落點 | 確認 FreePBX `General Settings → Operator Extension`，或直接把 `DBN_OPERATOR` 改成總機分機                            |
 | 目的地   | 一律 `Dial(Local/<num>@from-internal)`；號碼背後是分機、queue 或 ring group 都一樣，只要號碼在 PBX 上有效就會通       |
@@ -26,7 +28,7 @@
 放在**專案根目錄**（與 `agi_server.py` 同層）：
 
 ```
-/home/pbx/dial-by-name/.env
+/var/lib/asterisk/dial-by-name/.env
 ```
 
 內容**只放 `KEY=value`**，**不要加 `export`**（systemd 的 `EnvironmentFile` 只認這種格式）：
@@ -98,6 +100,11 @@ done
 
 ## 2. 片段
 
+收音期間的旁路只有三行（`start` AGI／`MixMonitor(,r(...))`／無條件 `StopMixMonitor`），
+`Record(${DBN_WAV}.wav,4,10,${DBN_REC_OPTS})` 一字不動；beep、4 秒靜音、10 秒上限、
+`#`、按 0、attempt／retry 的語意全部照舊。`start` 立即返回且不設通道變數，
+決策與六個 `DBN_*` 全在 `result`（`Playback(processing)` 之後）。
+
 ```
 [dbn-main]
 exten => s,1,Answer()
@@ -115,13 +122,16 @@ exten => s,1,Answer()
  ; 每輪重置：AGI 若靜默失敗（一個變數都沒送），落在 fallback → 總機，不沿用上一輪的動作
  same => n,Set(DBN_ACTION=fallback)
  same => n,Set(DBN_WAV=/var/lib/asterisk/dial-by-name/recordings/${UNIQUEID}-${DBN_SEQ})
+ same => n,AGI(agi://127.0.0.1:4573,start,${DBN_WAV}-in.wav,${UNIQUEID},${DBN_SEQ})
+ same => n,MixMonitor(,r(${DBN_WAV}-in.wav))
  ; silence=4s、max=10s、DBN_REC_OPTS=o 是按 0 轉總機（第二輪會清空）。不加 q 才會播 beep。
  same => n,Record(${DBN_WAV}.wav,4,10,${DBN_REC_OPTS})
+ same => n,StopMixMonitor()
  same => n,GotoIf($["${RECORD_STATUS}"="OPERATOR"]?operator)
  same => n,GotoIf($["${RECORD_STATUS}"="HANGUP"]?done)
  same => n,GotoIf($["${RECORD_STATUS}"="ERROR"]?retry)
  same => n,Playback(${DBN_SOUND}/processing)
- same => n,AGI(agi://127.0.0.1:4573,${DBN_WAV}.wav,${DBN_ATTEMPT},${DBN_CANDS})
+ same => n,AGI(agi://127.0.0.1:4573,result,${DBN_WAV}.wav,${UNIQUEID},${DBN_SEQ},${DBN_ATTEMPT},${DBN_CANDS})
  same => n,GotoIf($["${AGISTATUS}"!="SUCCESS"]?operator)
  same => n,GotoIf($["${DBN_ACTION}"="route"]?route)
  same => n,GotoIf($["${DBN_ACTION}"="route_dept"]?dept_dispatch)
@@ -240,7 +250,7 @@ exten => s,1,Set(DBN_IDX=1)
 
 ## 3. 套用（GUI 接入）
 
-> **順序**：先照 §3.5／§3.6 啟動 FastAGI、跑完 §3.8 冒煙，再貼 dialplan（§3.1）。
+> **順序**：先照 `README.md`「服務管理與開機自啟」啟動 FastAGI、跑完 §3.8 冒煙，再貼 dialplan（§3.1）。
 > AGI 沒起來時撥號會走 `AGISTATUS` 安全網轉總機，很容易誤判成 dialplan 寫錯。
 
 ### 3.1 貼上 dialplan
@@ -277,51 +287,19 @@ IVR／Time Condition 等其他模組也用同一個 destination。
 
 這樣內部分機撥 `*8000` 就會進 `[dbn-main]`，全程 GUI 管理。
 
-### 3.5 FastAGI 服務（systemd）
+### 3.5 FastAGI 服務（手動模式為正式；systemd 選用）
 
-`agi_server.py` 必須常駐；`WorkingDirectory` 一定要設，否則相對路徑（`data/people.json`、
-`out/calls`）會依 systemd 預設 cwd 出錯。
+`agi_server.py` 必須常駐，且 **cwd 必須是專案根目錄**，否則相對路徑（`data/people.json`、
+`out/calls`）會出錯（`scripts/agi.sh` 會自己 `cd`）。
 
-```ini
-[Unit]
-Description=dial-by-name FastAGI
-After=network.target
-
-[Service]
-User=asterisk
-Group=asterisk
-WorkingDirectory=/home/pbx/dial-by-name
-EnvironmentFile=/home/pbx/dial-by-name/.env
-ExecStart=/home/pbx/dial-by-name/.venv/bin/python agi_server.py \
-  --listen 127.0.0.1:4573 --directory data/people.json --logs out/calls
-ExecReload=/bin/kill -HUP $MAINPID
-Restart=always
-RestartSec=2
-
-[Install]
-WantedBy=multi-user.target
-```
-
-userman 模式（FreePBX 的 User Management → Directories 裡你自己那個 directory）：把 `ExecStart` 的名冊參數換成
-
-```
-  --pbx-db --source-directory '<你的 directory 名>' \
-  --aliases data/aliases.json --departments data/departments.json
-```
-
-（最終上線若換其他名冊：只改 `--source-directory` 一個值，補撥 2–3 通驗證即可。）
+2026-11-25 裁定**不實裝 systemd unit**：正式模式是手動 `scripts/agi.sh`（重開機後手動
+`scripts/agi.sh start`）。啟動／停止／`status`／`reload`、`AGI_*` 與 userman 名冊旗標、
+sweeper health 判定、systemd unit 全文與安裝驗證，一律以 `README.md` 的
+「服務管理與開機自啟」為**單一來源**；本文件不重複。
 
 `--pbx-db` 的 DB 設定讀 `.env` 四變數（缺任一才 fallback `/etc/freepbx.conf`）；
 兩邊都不齊或連線失敗＝啟動失敗。source directory 打錯／0 人同樣拒絕啟動——
 不要讓「空名冊成功啟動」把每一通電話靜默轉總機。
-
-```bash
-sudo $EDITOR /etc/systemd/system/dial-by-name-agi.service   # 貼上上面的 unit
-sudo systemctl daemon-reload
-sudo systemctl enable --now dial-by-name-agi
-ss -ltnp | grep 4573
-journalctl -u dial-by-name-agi -f
-```
 
 **人員異動 SOP（userman 模式）**
 
@@ -335,47 +313,24 @@ journalctl -u dial-by-name-agi -f
    `Dial(Local/<ext>@from-internal)` 會找不到新分機。
 2. 離職：同步刪除 `aliases.json` 裡該 `user_id`（孤兒 alias 會讓 reload 永遠失敗）。
 3. `uv run scripts/check_aliases.py --source-directory '<你的 directory 名>'` → 退出碼 0。
-4. `sudo systemctl reload dial-by-name-agi`（PoC 手動模式：`scripts/agi.sh reload`）→ 必須看到
+4. `scripts/agi.sh reload`（選用 systemd 時 `sudo systemctl reload dial-by-name-agi`）→ 必須看到
    `reload ok: people=N aliases=M (was K)`；`reload failed` 時**服務仍用舊索引**，修好再 reload。
 5. `aliases.json`／`departments.json` 一律「寫暫存檔 → `mv` 取代」，避免半寫入檔案碰上 HUP。
 
-**權限（二選一，必須一致）**
+**權限（服務身分與目錄必須一致）**
 
-- 方案 A（本範例）：`User=asterisk`；`.env` 必須是 `asterisk:asterisk 600`，
+- 方案 A（本範例）：以 `asterisk` 身分跑（手動 `sudo -u asterisk scripts/agi.sh start`，
+  或 systemd `User=asterisk`）；`.env` 必須是 `asterisk:asterisk 600`，
   專案目錄可被 asterisk 讀取，`recordings/` 與 `out/calls/` 都是 `asterisk:asterisk 0770`：
   `sudo chown asterisk:asterisk .env && sudo chmod 600 .env`
-- 方案 B：`User=pbx`、`Group=asterisk`、`SupplementaryGroups=asterisk`；`.env` 是 `pbx:pbx 600`；
-  `recordings/`／`out/calls/` 給 `asterisk:asterisk 0770`（pbx 靠群組讀寫）。
+- 方案 B（僅選用 systemd）：`User=pbx`、`Group=asterisk`、`SupplementaryGroups=asterisk`；
+  `.env` 是 `pbx:pbx 600`；`recordings/`／`out/calls/` 給 `asterisk:asterisk 0770`（pbx 靠群組讀寫）。
 
-### 3.6 手動啟動（PoC）
+### 3.6 手動啟動（正式模式）
 
-不需要 systemd；適合單機 PoC／除錯。**不要和 systemd 同時跑**（port 衝突）。
-
-```bash
-cd /home/pbx/dial-by-name
-scripts/agi.sh foreground        # 前景執行，Ctrl+C 停止，log 直接看
-scripts/agi.sh start             # 背景啟動；PID 寫 out/agi.pid、log 寫 out/agi.log
-scripts/agi.sh status            # 看 PID 與 4573 是否在聽
-scripts/agi.sh reload            # SIGHUP → 等 log 的 reload ok/failed；失敗回非零
-scripts/agi.sh stop
-scripts/agi.sh restart
-```
-
-- 預設 listen `127.0.0.1:4573`；換埠：`AGI_LISTEN=127.0.0.1:4574 scripts/agi.sh start`。
-- 換名冊（臨時驗收用）：`AGI_DIRECTORY=/path/to/roster.json scripts/agi.sh start`。
-  **systemd 不讀這個變數**——那條路的 `--directory` 寫在 unit 的 `ExecStart`，要改 unit 或加 drop-in。
-- userman 模式：`AGI_PBX_DB=1 AGI_SOURCE_DIRECTORY='<你的 directory 名>' scripts/agi.sh start`
-  （`AGI_ALIASES`／`AGI_DEPARTMENTS` 可換路徑）；回滾＝拿掉 `AGI_PBX_DB` 重啟。
-- 若 `.env` 存在會自動 source，key 不進指令行、不進 shell 歷史。
-- 其他參數原樣傳給 `agi_server.py`，例：`scripts/agi.sh start --stt-timeout 15`。
-- `reload` 只支援 `start` 的背景模式（要有 `out/agi.log`）：腳本送 HUP 後等 10 秒，
-  抓最新一筆 `reload ok|failed`；`reload failed` 時服務仍在跑（舊索引），退出碼 1。
-- 背景模式看 log：`tail -f out/agi.log`。
-- 手動模式**重開機不會自動起**；正式部署請用上面的 systemd。
-
-> `.env` 權限 600、不入版控、不進 rsync 樹；User/Group 要與 `recordings/`、`out/calls/`
-> 的權限一致。handler thread 超時後只關閉連線，**不保證停止仍在跑的 STT 執行緒**
-> （它會在自己的 timeout 內結束）。
+手動模式是**正式模式**，重開機不會自動起。`foreground`／`start`／`stop`／`restart`／`status`／
+`reload` 的指令與語意、`AGI_*` 參數、health 判定與 systemd（選用）：全部見
+`README.md`「服務管理與開機自啟」。**不要和 systemd 同時跑**（port 衝突）。
 
 ### 3.7 套用後驗證
 
@@ -388,15 +343,9 @@ sudo asterisk -rx 'dialplan show dbn-main@dbn-main'   # 應看到 s,1 Answer()
 
 ### 3.8 第一通之前的 AGI 冒煙（不必撥號）
 
-**先確認服務活著**：
-
-```bash
-cd ~/dial-by-name
-scripts/agi.sh start          # 或 sudo systemctl start dial-by-name-agi
-scripts/agi.sh status         # PID 存在、4573 在聽
-ss -ltnp | grep 4573
-tail -n 5 out/agi.log         # 應有 "FastAGI listening on 127.0.0.1:4573"
-```
+**先確認服務活著**：照 `README.md`「服務管理與開機自啟」啟動；`scripts/agi.sh status` 的
+PID／4573／sweeper heartbeat 都要 OK（sweeper DEAD 會回非零），`ss -ltnp | grep 4573`
+應看到 listener，`out/agi.log` 有 `FastAGI listening on 127.0.0.1:4573`。
 
 **STT 對外通不通**（key 有效、外網可達、模型可呼叫）：
 
@@ -420,119 +369,108 @@ print(handle_turn('sounds/zh/welcome.wav', 1, stt=SttClient(timeout=12.0), direc
 所以**預期得到 `action=ask`／`reason=no-candidate-retry`**（有找人意圖但沒有候選）。
 出現 `retry` 代表 STT 回空字串或呼叫失敗（音檔、key、網路）；`hangup`／`no-intent`
 代表意圖詞判定異常；`route`／`route_dept` 代表名冊或比對異常。
-三項都對再進 §4 撥號。
+三項都對再進 §4 撥號。冒煙通過後的第一通可用 Local channel 撥 `s@dbn-main` 演練，不佔外線，
+判讀同 §4。
 
-### 3.9 STT 失效時會怎樣
+### 3.9 STT 失效時會怎樣（Realtime）
 
-`handle_turn()` 只判斷「要不要重試」；**決定何時掛線的只有 dialplan 的 `DBN_TRIES`**。
-adapter 拿不到通話層狀態，不得自行判斷「第二次空字串就掛線」。
+生產路徑的失敗分流在 `handle_result()`（`dialname/agi.py`）：先看串流錯誤，再看
+frames，再看 VAD partial，最後才是文字。**決定何時掛線的仍然只有 dialplan 的
+`DBN_TRIES`**；adapter 不判斷「第二次空字串就掛線」。
+（`handle_turn()` 只保留給離線工具／批次路徑，它的 401→`hangup` 不套用到電話。）
 
-| 情況 | `DBN_ACTION` | `DBN_REASON` | 來電者聽到 | 誰決定 |
-|---|---|---|---|---|
-| 逐字稿空字串 | `retry` | `stt-empty` | `retry`（沒聽清楚，請再說一次） | AGI |
-| timeout／連線失敗／5xx／其他 4xx | `retry` | `stt-error` | 同上 | AGI |
-| 401／403 | `hangup` | `stt-auth` | `goodbye` → 掛斷 | AGI（不重試、不轉總機） |
-| 未預期例外（程式錯誤） | `fallback` | `internal-error` | `to-operator` → 總機 | AGI |
-| 回傳值含非 ASCII 或控制字元 | `fallback` | `non-ascii` | 同上 | AGI |
-| `retry` 第二次（`DBN_TRIES` > 1） | `hangup` | — | `goodbye` → 掛斷 | **dialplan** |
-| AGI 沒回應／超過 25 秒 | （無） | — | `to-operator` → 總機 | dialplan（`AGISTATUS`） |
+| 情況 | `DBN_ACTION` | `DBN_REASON` | JSONL `stt_status` | 來電者聽到 | 誰決定 |
+|---|---|---|---|---|---|
+| WS 連不上／401／403／中斷且無 transcript | `fallback` | `stream-error` | `auth`／`unavailable`／`ws`／`dropped`／`timeout`／`internal` | `to-operator` → 總機 | AGI（**政策翻案**：系統故障必須落到人） |
+| WS 中斷但已有 transcript | 用現有文字照常 decide | 依決策 | `ok`；`stream.status=dropped` | 依決策 | AGI（已付的語音不浪費） |
+| `frames=0`（旁路檔沒出現／tailer 死） | `fallback` | `bypass-empty` | `frames-0` | 總機 | AGI（系統故障） |
+| `result` 找無 session（start 崩潰／服務重啟） | `fallback` | `result-no-session` | `no-session` | 總機 | AGI（系統故障） |
+| `result` 見到 stub（並發閘滿） | `fallback` | `session-stub` | `stub` | 總機 | AGI（過載保護走人） |
+| 無 commit 且全程無 partial（沉默／秒按 `#`） | **`retry`** | `no-speech` | `no-speech` | `retry`（沒聽清楚，請再說一次） | AGI；`DBN_TRIES` 用盡 → `hangup`＋`goodbye` |
+| 無 commit 但曾有 partial（語音有進沒落地） | `fallback` | `stream-stalled` | `partial-only` | 總機 | AGI（串流落後視同故障） |
+| 空逐字稿（有 commit、文字為空） | `retry` | `stt-empty` | `empty` | `retry` | AGI |
+| 未預期例外（程式錯誤） | `fallback` | `internal-error` | `exception` | 總機 | AGI |
+| 回傳值含非 ASCII／控制字元 | `fallback` | `non-ascii` | — | 總機 | AGI（`_ascii_result`） |
+| `retry` 第二次（`DBN_TRIES` > 1） | `hangup` | — | — | `goodbye` → 掛斷 | **dialplan** |
+| AGI 沒回應／超過 25 秒 | （無） | — | — | 總機 | dialplan（`AGISTATUS`） |
 
-一次「STT 全掛」（不是 401，而是 timeout）的實際順序：
+**`auth` 與 `ws` 的判別**：以 `docs/io-mapping.md` §3 的「STT 失敗的 auth 映射」為唯一來源
+（`stream.error`／`stream.detail` 的記法與 2026-11-25 裁定）；本節只列行為面——兩者一律
+`fallback` → 總機。
 
-```
-welcome → Record(上限 10s、靜音 4s) → processing → AGI
-   └ 12 秒 timeout → retry → 播「沒聽清楚，請再說一次」
-Record 再一次 → processing → AGI
-   └ 12 秒 timeout → DBN_TRIES=2 → goodbye → Hangup
-```
+**判別訊號是 VAD partial，不是 frames**：旁路是 audiohook 連續串流，純靜音也會讓
+`frames > 0`；「無 commit」時看的是「有沒有講過話」——全程無 partial ＝ 來電者沒說話
+（`retry`），曾有 partial ＝ 串流落後（`fallback`）。`frames` 只用來抓「檔案沒出現」
+這種系統故障，且只能在 `result` 判定（`StopMixMonitor` 後必定至少 flush 一次）。
 
-**至少 24 秒是純等待**（兩次 12 秒 timeout），加上兩次錄音與三句提示音，最壞約 50 秒才掛線。
-不會靜默斷線，但這段時間來電者大部分在聽空白（限制見 §5）。
+`Playback(processing)` 的位置不動，`result` 端總預算是 **3 秒**（`RESULT_TIMEOUT`），
+與 tailer／WS 的 EOF 收尾並行，不是串行疊加。常態輪的 transcript 在收音期已 commit，
+等待接近 0；沉默輪才會付一次「等不到 commit」的 3 秒。舊版「兩次 12 秒 timeout＝至少
+24 秒純等待」的描述作廢。
 
 三條語意（改動前先讀）：
 
 1. `retry` **不增加** `DBN_ATTEMPT`：它是同一輪重錄，不是追問；按 0 的逃生口也還在。
-2. `DBN_TRIES` **整通電話共用、上限 1**：第一次空用掉重試後，之後任何一次空（不論 `attempt`）都掛線。
-   `RECORD_STATUS=ERROR`（錄音本身失敗）走同一條路，**吃掉同一份預算**——
-   所以「一次錄音失敗＋一次 STT 失敗」就會掛線；除錯時先看 JSONL 的 `wav_duration_ms` 是不是 `null`。
-3. 401／403 刻意**不轉總機**：key 壞掉時每一通都灌總機會壓垮總機。代價是來電者被掛線，
-   而且目前只有 `out/calls/*.jsonl` 的 `stt_status` 看得到（見 §5）。
-   這是 **PoC 的立場**：2026-11-16 已改判為「系統故障必須落到人」，正式階段隨 Realtime 重做，
-   不要沿用本條的理由。
+2. `DBN_TRIES` **整通電話共用、上限 1**：第一次空用掉重試後，之後任何一次空（不論 `attempt`）
+   都掛線。`RECORD_STATUS=ERROR`（錄音本身失敗）走同一條路，**吃掉同一份預算**。
+3. **系統故障 → 總機、來電者沒說話 → retry、無意圖／無回應 → 掛線**。401 不再掛線
+   （PoC 的「key 壞掉不灌爆總機」已於 2026-11-23 翻案）；故障觀測面是 JSONL 的
+   `stt_status`／`stream.status`，以及 `scripts/agi.sh status` 的 sweeper liveness。
 
-## 4. 驗收紀錄與待驗項目
+**wav 即刪**：`result` 走到就刪旁路檔與 `Record` 檔；沒走到 `result` 的分支
+（OPERATOR／HANGUP／ERROR／閘滿 stub）由 sweeper 在 TTL（20 秒）到期時刪。
+兩條路徑都只刪 session 登記的兩檔，JSONL 的 `wav` 檔名保留（join key）。
 
-**首次上線驗收（2026-11-16）**：16 項全部通過。
-環境：FreePBX **17.0.33.2**、Asterisk **22.4.1**、名冊 40 人、alias 0 筆。
+## 4. 驗收清單（每次重新部署都要重跑）
 
-**alias 政策驗收（2026-11-18）**：6 項通過（含兩條 11-17 回歸）。
-環境同上；名冊 40 人＋3 個 alias（阿明／小美／筱美，內嵌在 `data/people.json`）。
+`[ ]` 是可重複使用的模板：每次重新部署、改 dialplan 或改比對／決策邏輯後整份重勾，
+任一項失敗就回滾到上一個版本。清單只寫「驗什麼」；失敗時各分支的落點
+（`DBN_ACTION`／`stt_status`／誰決定）一律以 §3.9 為準。
 
-`[x]` 代表**當次通過**，不是「以後不必再驗」。每次重新部署、改 dialplan 或改比對／決策邏輯後，
-要重跑一輪；任一項失敗就回滾到上一個版本。
+歷史：2026-11-16 首次驗收 16 項通過（FreePBX 17.0.33.2、Asterisk 22.4.1、名冊 40 人、alias 0 筆）；
+2026-11-17／18 alias 政策回歸通過（當次抓到並修正兩個 alias bug）。
 
-### 4.1 首次上線（已完成，2026-11-16）
+### 4.1 首次上線
 
-- [x] §1.2 環境檢查通過（`uv sync`、`chmod +x scripts/agi.sh`、兩個 key 都印 `set`）
-- [x] §3.8 冒煙通過（`welcome` 音檔 → `ask`／`no-candidate-retry`；`retry` 代表 STT 有問題）
-- [x] 從 Inbound Route（或內部分機 `*8000`）進線，聽到 `welcome`（`Playback` 無聲＝路徑錯；看 `PLAYBACKSTATUS`）
-- [x] 說完一句後 `recordings/<uniqueid>-1.wav` 存在，`out/calls/YYYYMMDD.jsonl` 有紀錄
-- [x] `DBN_ACTION=route` 時轉到正確分機；`Dial` 失敗會轉總機（**對 queue 目的地不會觸發**：queue 立刻應答，`DIALSTATUS=ANSWER`）
-- [x] 只說「業務部」→ `route_dept`、播 `transferring&dept-sales`
-- [x] 完全不出聲兩次 → 播 `goodbye` 後掛線（不是轉總機）
-- [x] 說「我要談業務合作」→ ~~第一輪播 `goodbye` 後掛線（不問第二輪）~~（11-16 舊規則的行為）
-      **方案 C（2026-11-19）後改為 `dept-scoped-ask`**：播 `dept-sales`＋`q-dept-who` 再問一輪；
-      2026-11-23 實撥重驗（T1 `dept-scoped-ask`、第二輪仍無人 → giveup 轉總機）
-- [x] 說「我要找陳美玲」→ 追問部門 → 答「客服部」轉 10XX；答錯部門（如「人事部」）播 `not-found` 後轉總機，不得轉人事部
-- [x] 按 0 在錄音期與澄清句（`Background`）期間都有效；`welcome`／`processing`（`Playback`）期間無效
-- [x] 第一輪錄音按 0 → 總機；**「追問部門」的那一輪**按 0 無效（`DBN_REC_OPTS` 已清空、也不播 `q-operator`）
-- [x] 「沒聽清楚」的重試錄音**仍可按 0**（`retry` 不增加 `DBN_ATTEMPT`，屬於同一輪；那是說不出話的來電者唯一的逃生口）
-- [x] 錄音前聽得到 beep（找不到 `/var/lib/asterisk/sounds/en/beep.*` 就得改回自錄 cue）
-- [x] `sudo -u asterisk touch recordings/.probe` 與 `out/calls` 的 `.probe` 都成功
-- [x] `DBN_OPERATOR` 的落點正確（FreePBX Operator Extension 或實際總機分機）
-- [x] AGI 掛掉時（暫時停掉 `agi_server`）撥號會轉總機，不會靜默斷線
+- [ ] §1.2 環境檢查（`uv sync`、`chmod +x scripts/agi.sh`、key 都印 `set`）
+- [ ] §3.8 冒煙的判讀符合預期
+- [ ] 從 Inbound Route（或內部分機 `*8000`）進線，聽得到 `welcome`（無聲先查音檔路徑與 `PLAYBACKSTATUS`）
+- [ ] 說完一句後 `out/calls/YYYYMMDD.jsonl` 有紀錄（`wav` 欄位是 join key；旁路檔在
+      `result`／TTL 即刪，不落地留存）
+- [ ] `route` 轉到正確分機；`Dial` 失敗的落點符合 §3.9（queue 目的地不觸發）
+- [ ] 只說「業務部」→ `route_dept`、播 `transferring&dept-sales`
+- [ ] 連續兩輪不出聲的收尾符合 §3.9（`DBN_TRIES` 上限）
+- [ ] 說「我要談業務合作」→ 追問部門（`dept-scoped-ask`）；第二輪仍無人 → 總機
+- [ ] 「我要找陳美玲」→ 追問部門 → 答「客服部」轉 10XX；答錯部門 → 不得轉錯部門
+- [ ] 按 0 的有效範圍：錄音期與澄清句（`Background`）有效；`welcome`／`processing`（`Playback`）期間無效
+- [ ] 第一輪錄音按 0 → 總機；「追問部門」的那一輪按 0 無效
+- [ ] 「沒聽清楚」的重試錄音仍可按 0
+- [ ] 錄音前聽得到 beep（找不到 `/var/lib/asterisk/sounds/en/beep.*` 就得改回自錄 cue）
+- [ ] `recordings/` 與 `out/calls/` 的權限 probe 成功
+- [ ] `DBN_OPERATOR` 的落點正確
+- [ ] AGI 掛掉時撥號的落點符合 §3.9（`AGISTATUS`）
 
-### 4.2 alias 政策（已完成，2026-11-18）
+### 4.2 alias 政策
 
-alias 白名單政策於 2026-11-17 上線。`data/people.json` 內嵌 3 個示範 alias
-（阿明／小美／筱美），所以下表三個情境直接跑預設名冊就驗得到——**不需要換名冊**。
-（正式 userman 模式沒有 alias 欄位，已改由 sidecar `aliases.json` 提供，key＝`user_id`；
-JSON 示範名冊仍內嵌 alias 供離線開發與本節驗收。）
-
-2026-11-17 首輪在「小美」題抓到兩個 bug（贅詞讓同音 alias 消失、0.51 的唯一候選直轉），
-修正後 2026-11-18 重撥，下表三個情境全部走過。證據：`out/calls/20261118.jsonl`（19 行／14 通）。
+`data/people.json` 內嵌 3 個示範 alias（阿明／小美／筱美），下表三個情境直接跑預設名冊就
+驗得到——**不需要換名冊**。（正式 userman 模式沒有 alias 欄位，由 sidecar `aliases.json`
+提供，key＝`user_id`；JSON 示範名冊仍內嵌 alias 供離線開發與本節驗收。）
 
 | 情境 | 念 | 預期 |
 |---|---|---|
 | 唯一命中 | 阿明 | `route` **10XX**（林志明），`reason=direct:confident` |
 | 同音多人 | 小美 | `ask`（`alias-ask`）→ 答「客服部」→ `route` **10XX**；答「行政部」→ **10XX** |
-| 未登記 | 美玲 | `fallback`（`alias-not-found`）→ **總機**（不掛線、不得轉給林志明） |
+| 未登記 | 美玲 | `fallback`（`alias-not-found`）→ **總機**；不得轉給林志明 |
 
-> 本節與後面的驗收紀錄，分機一律寫成 `10XX`（範例）。示範名冊（`data/people.json`）
-> 給的是具體值；換成你的名冊時，只要「決策正確、分機指向該人」就算通過。
+> 分機一律寫成 `10XX`（範例）。示範名冊（`data/people.json`）給的是具體值；換成你的名冊時，
+> 只要「決策正確、分機指向該人」就算通過。
 
-```bash
-# 撥上面三通，看逐輪日誌（candidates 應是 0.95 的 alias 分數）
-tail -n 6 out/calls/$(date +%Y%m%d).jsonl
-
-# 需要換另一份名冊驗收時（可選）：
-#   AGI_DIRECTORY=/path/to/roster.json scripts/agi.sh start
-#   systemd 不讀這個變數，要改 unit 的 --directory；測完記得重啟回預設。
-```
-
-- [x] 阿明 → 直轉 10XX（`1794988132.238`，u006 0.95，`direct:confident`）。JSONL 的 candidates
-      只有 `pid`／`score`，沒有 `reasons` 欄位——驗證方式就是對這兩個值
-- [x] 小美 → 問部門（`1794988224.246` 第 1 輪 `alias-ask`，u008／u009 同分 0.95）；
-      答客服部 → 10XX（同通第 3 輪）；答行政部 → 10XX（`1794990221.279` 第 2 輪，u009 0.95）；
-      答錯部門（資訊部）→ `no-candidate-giveup` → 總機（`1794988299.249` 第 2 輪）
-- [x] 美玲 → 總機（`alias-not-found`；2026-11-17：`1794904727.229`／`1794904757.232`／
-      `1794904794.235`），**不是**掛線、**不是**轉給林志明。11-18 未重撥
-- [x] 回歸（2026-11-17）：「請問小美在嗎？」也要問部門（`alias-ask`），不得因為殘留「好請問」而直轉 10XX
-      （`1794988299.249`／`1794988529.255`／`1794988632.256`）
-- [x] 回歸（2026-11-17）：「小米」→ 總機（`low-confidence-single`，0.51），不得轉 10XX（王小明）
-      （`1794988179.243`／`1794988496.252`／`1794990193.276`，三次一致）
-- [x] 401／403 → 播 `goodbye` 掛線（`reason=stt-auth`、`DBN_ACTION=hangup`），**不轉總機**
-      （`1794988731.257`；本次用 `.env` 註解 key 製造，不是 drop-in）
+- [ ] 阿明 → 直轉 10XX（`direct:confident`；JSONL 的 candidates 只有 `pid`／`score` 可對）
+- [ ] 小美 → 問部門（`alias-ask`）→ 答客服部／行政部都轉到對應的人；答錯部門 → 總機
+- [ ] 美玲 → 總機（`alias-not-found`）
+- [ ] 回歸：「請問小美在嗎？」也要問部門（`alias-ask`），不得因殘留「好請問」而直轉
+- [ ] 回歸：「小米」→ 總機（`low-confidence-single`），不得轉 10XX（王小明）
+- [ ] 401／403（含 WS `auth_error`）→ `fallback` → 總機（分類見 `docs/io-mapping.md` §3）
 
 401 的測法（不要動到正式 key；兩個路徑選一個）：
 
@@ -553,36 +491,45 @@ scripts/agi.sh restart
 mv .env.bak .env && scripts/agi.sh restart
 ```
 
-若 drop-in 的 `Environment=` 沒有蓋過 `EnvironmentFile=`（少數 systemd 版本），改用 `.env` 備份法。
-2026-11-18 的驗收直接在 `.env` 把 `ELEVENLABS_API_KEY` 註解掉（`#`）：空 key 送到 API 一樣是 401，
-結果與 drop-in 相同，測完記得取消註解。
+若 drop-in 的 `Environment=` 沒有蓋過 `EnvironmentFile=`（少數 systemd 版本），改用 `.env` 備份法；
+測完記得還原並重啟。
 
-### 4.3 已完成但先前未記錄
+### 4.3 `eval.py --calls`
 
-- [x] `eval.py --calls` 8 通實撥：8/8 決策符合預期（2026-11-16）。`truth.csv` 與 wav 不進版控
-      （見 README 的「量測」章節）
+- [ ] 實撥場次的決策與 `truth.csv` 全部吻合；`truth.csv` 與 wav 不進版控（見 README「量測」）
 
-### 4.4 同音＋部門（已完成，2026-11-18）
+歷史：2026-11-16 首場 8 通 8/8。
 
-342 題的 `homophone_dept_top1 1.000` 在真實音檔從未觸發，以三通補驗（2026-11-18）：
+### 4.4 同音＋部門
 
-- [x] 「好，我要找客服部的王偉」→ 直轉 **10XX**（`1794989391.263`，u002 0.947）。部門收斂
-      （`DEPT_SCOPE_MIN`）把業務部的王偉排除，只剩客服部的汪偉——**不是**「雙候選再問部門」
-- [x] 「业务部王伟」→ 10XX（`1794989536.268`，u001 1.00）
-- [x] 「资讯部王伟」→ 部門內無人相符 → `ask`（`1794989726.273` 第 1 輪，4 候選）→ 再答「王伟」
-      → `clarify-exhausted` → 總機（第 2 輪），**不轉錯人**
+342 題的 `homophone_dept_top1` 在真實音檔從未觸發，以三通補驗：
+
+- [ ] 「好，我要找客服部的王偉」→ 直轉 10XX：部門收斂（`DEPT_SCOPE_MIN`）排除業務部的
+      王偉，只剩客服部的汪偉
+- [ ] 「业务部王伟」→ 10XX
+- [ ] 「资讯部王伟」→ 部門內無人相符 → `ask` → 再答「王伟」→ `clarify-exhausted` → 總機
+
+歷史：2026-11-18 三通通過。
 
 ## 5. 已知限制
 
-- STT 期間（`processing` 播完到 AGI 回來）沒有任何輸入處理；按 0 要等下一輪錄音。
-- **STT 全斷（非 401，而是 timeout）沒有 fast-fail**：要等兩次 12 秒 timeout 才掛線
-  （約 24 秒純等待，最壞 50 秒；細節見 §3.9）。沒有熔斷、沒有退避。
-- `retry` 的提示音（「沒聽清楚，請再說一次」）在 API 故障時是誤導的；改播 `goodbye`
-  會撞到「adapter 不計次」的契約，所以維持現狀。
+- **收音期沒有 barge-in**：旁路只監聽，來電者仍不能在提示音期間打斷。
+  `Playback(processing)` 之後（等 `result`，最多 3 秒）也沒有輸入處理；按 0 要等下一輪錄音。
+- `result` 端總預算 3 秒（`RESULT_TIMEOUT`）。WS 卡在握手就是等滿 3 秒才落總機；
+  沒有熔斷、沒有指數退避（上線工程最小化）。
+- **VAD commit 與檔案 flush 的粒度**：`MixMonitor` 的 side file 是 32 KiB（8 kHz s16＝2.048 秒）
+  一批才落盤；若最後一段語音的 commit 落在未滿一批的尾巴，`StopMixMonitor` 才吐出，
+  `result` 要多等一次 ASR commit（約 150–400 ms）。成功標準 #1 的 p95 < 300 ms 有風險，
+  R3 要用 `stream.commit_ms` 分佈驗；常態輪（先停話）不受影響。
+- **並發閘 4（寫死）**：四個沒走到 `result` 的 session 在 20 秒 TTL 內佔滿閘，期間新話務
+  全量落總機（availability cliff）。R3 觀察 active session 數後再議「閘只計 streaming 態」。
+- **TTL 20 秒＝隱私窗口**：OPERATOR／HANGUP／ERROR／閘滿 stub 的 wav 由 sweeper 在 20 秒內刪；
+  服務若被 `kill -9`，sweeper 也停止，殘留檔沒有外部清理器（R3 稽核只涵蓋正常離開路徑）。
+  `scripts/agi.sh status` 以 heartbeat 新舊判 sweeper 死活（超過 5 秒＝DEAD），不引進 metrics。
 - STT 回 200 但聽成亂句**不算失效**：走正常決策，多半落在 `no-intent` → 掛線。
   除錯時要 `stt_status: "ok"` 配 `reason: "no-intent"` 一起看，才分得出「聽錯」與「壞掉」。
-- 401／403 的觀測面只有 `out/calls/*.jsonl` 的 `stt_status`；沒有健康檢查、沒有告警。
-  正式階段 STT 改 Realtime 後整套重做（見 `ROADMAP.md`），本節不展開設計。
+- 故障觀測面是 `out/calls/*.jsonl` 的 `stt_status`／`stream.status` 與 `scripts/agi.sh status`；
+  沒有告警、沒有 metrics 匯出（刻意不做）。
 - **「追問部門」的那一輪**沒有按 0 的逃生口（`DBN_REC_OPTS` 清空、不播 `q-operator`）。
   但「沒聽清楚」的重試錄音仍保留按 0：`retry` 不增加 `DBN_ATTEMPT`，屬於同一輪，
   而連話都說不出來的來電者只剩這條路。

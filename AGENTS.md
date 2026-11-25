@@ -9,8 +9,8 @@ FreePBX／Asterisk 的「說姓名 → 轉分機」參考實作（Python）。�
 漏字、只講姓、只講稱謂等問題；本專案做拼音比對 + 部門收斂 + 澄清決策，最後產生 Asterisk
 可執行的決策。
 
-示範名冊與測資都是**合成資料**；ElevenLabs STT adapter 與 FastAGI 單輪處理器已完成，
-但真實電話評測不在本 repo 內。
+示範名冊與測資都是**合成資料**；ElevenLabs STT adapter（批次＋Realtime）與 FastAGI
+兩相處理器（`start`／`result`）已完成，但真實電話評測不在本 repo 內。
 
 > 架構定案：**AGI 只做 STT＋decide**，收音、播音、轉接、回合全在 FreePBX dialplan
 > （`docs/dialplan.md`）。
@@ -33,8 +33,11 @@ FreePBX／Asterisk 的「說姓名 → 轉分機」參考實作（Python）。�
 ```
 dialname/core.py      正規化、拼音變體、評分、索引桶、部門解析、needs_clarification（產品邏輯）
 dialname/decision.py  本地決策引擎：決策樹 decide()、clarify_plan、姓名音檔命名（clip_hash／name_clip／name_manifest）
-dialname/agi.py       單輪 AGI 處理器（STT → decide → DBN_*）＋薄協議層；**不碰電話層**
-dialname/stt_client.py ElevenLabs Scribe v2 adapter（wav → Transcript）
+dialname/agi.py       AGI 處理器：`start` 登記旁路 session、`result` 等 transcript → decide → DBN_*（`handle_turn` 留給離線工具）＋薄協議層；**不碰電話層**
+dialname/stt_client.py ElevenLabs Scribe v2 批次 adapter（wav → Transcript）
+dialname/stt_realtime.py ElevenLabs Realtime WS client：PCM 串流／事件解析／錯誤分類
+dialname/turns.py     TurnManager：一輪一 session、WAV tail、TTL sweeper 語意
+dialname/health.py    sweeper heartbeat／status 判定（`out/agi.health.json`）
 dialname/pbx_directory.py 正式名冊入口：userman（join userman_directories）＋aliases.json＋departments.json＋DB 連線
 agi_server.py         FastAGI 進入點（threaded，listen 127.0.0.1:4573；SIGHUP 原子重載）
 eval.py               342 題指標 + 門檻掃描（argparse；--transcripts/--calls）
@@ -106,18 +109,26 @@ uv run pytest -q
 10. **掛線政策**：無意圖／無回應 → `hangup`（先播 `goodbye`）；已表達找人意圖但收斂不了 → 總機。
 11. **repo 內沒有音檔**，也沒有 `sounds/` 目錄。決策層的 `sounds/zh/<name>` 只是標籤；
     部署位置是 `/var/lib/asterisk/sounds/dbn/zh/`。要驗音檔請對自己錄的暫存目錄跑 `scripts/check_sounds.py`。
+12. **STT 墊字後接標點**：Realtime 常吐「呃......名字」（ASCII 句點 U+002E）；`PUNCT_RE`
+    （`core.py:32`）必須涵蓋 ASCII `.`，否則 `_strip_fillers` 剝掉墊字後停在句點，
+    姓名檢索全滅（2026-11-25 實撥教訓）。
 
 ## 6. 目前狀態
 
+- `uv run pytest -q`：**241 passed**
 - `eval.py`：342 題全綠 — `silent_wrong 0.000`、`recall3_hard 1.000`、`homophone_dept_top1 1.000`、
   `clarify_hard 0.990`、`clarify_easy 0.230`、`garbage_* 0/0`、`no_requery 1.000`、`third_ask 0.000`
 - 關鍵常數：`WEIGHTS` char .20 / partial .16 / sur .30 / length .14 / given .10 / initials .10；
   `MIN_SCORE .45`、`HOMOPHONE_FLOOR .70`、`CONFIDENT_SCORE .92`、`DEPT_BONUS +.10` / `DEPT_PENALTY −.08`、
   `DEPT_SCOPE_MIN 1`、`SINGLE_CANDIDATE_FLOOR .70`
-- 已完成：STT adapter、單輪 AGI 處理器、FastAGI server（SIGHUP 原子重載）、pbx_directory
-  （userman＋aliases sidecar）、20 通劇本工具鏈、Jev 委派機制移除、19 支提示音的規格與檢查工具
-- 尚未做：keyterms 啟用與否（需要 A/B）、真實通話語料、`disclose_names=True` 的四支固定句、
-  Go 移植。外部模型整合已移除，(d) 可達率 0 作為重開訊號（契約 3）
+- 已完成：STT adapter（批次＋Realtime）、FastAGI 兩相協議（`start`／`result`）＋TTL sweeper＋
+  Realtime 邊錄旁路、FastAGI server（SIGHUP 原子重載）、pbx_directory（userman＋aliases sidecar）、
+  20 通劇本工具鏈、Jev 委派機制移除、19 支提示音的規格與檢查工具
+- 真機實撥兩場（2026-11-25）：第一波成功標準 #1 通過（邊際）、`PUNCT_RE` 修正實戰驗證、
+  同部門同音＝安全拒猜
+- 尚未做：Go 移植、`disclose_names=True` 的四支固定句、keyterms A/B、真實接聽端語料、
+  systemd（2026-11-25 裁定不實裝，正式模式＝手動 `scripts/agi.sh`）。外部模型整合已移除，
+  (d) 可達率 0 作為重開訊號（契約 3）
 
 ## 7. 工作鐵則
 
