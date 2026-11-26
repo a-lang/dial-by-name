@@ -12,7 +12,7 @@
 |---|---|
 | 簡體全名／漏字／英文／贅詞 top-1 | 1.000 |
 | 繁體全名 top-1（對照組，`sc_vs_tc_gap`） | 1.000（gap 0.000） |
-| 疑難查詢（同音、只講姓、只講名、部門+姓）recall@3 | 1.000 |
+| 疑難查詢（同音、只講姓、部門+姓；只講名另由 `alias_not_found_rate` 追蹤）recall@3 | 1.000 |
 | 部門辨識（只講部門） | 1.000 |
 | 疑難查詢觸發澄清的比例 | 0.990 |
 | 無歧義查詢被多問一次的比例 | 0.230（其中多數真的有名冊內的同音鄰居） |
@@ -48,10 +48,10 @@
 **本 repo 不含任何真實通話語料**（含個資）。真實錯誤率（WER／CER）請用自己的錄音；
 本 repo 的 stt_batch.py 以字元級 CER 計算。
 
-## 4. `eval.py` 的 13 種 `kind`
+## 4. `eval.py` 的 `kind`（13 種實際出現，共 14 種可能值）
 
-**除 `english` 外，全部以簡體送出**（模擬真實 STT 的輸出字形，經 OpenCC `t2s` 轉換）。
-`-sc` 後綴就是這個意思。
+**姓名題除 `english`／`exact-tc` 外，全部以簡體送出**（模擬真實 STT 的輸出字形，經 OpenCC `t2s` 轉換）。
+`garbage`／`nickname-trap` 用原文（多為繁體）。`-sc` 後綴就是簡體的意思。
 
 | `kind` | 測什麼 |
 |---|---|
@@ -61,7 +61,8 @@
 | `homophone-dept-sc` | 同音字替換 + **報了部門**（部門是封閉詞彙，應該足以解掉同音歧義 → top-1 必須對） |
 | `drop-char-sc` | 漏中間一個字 + 簡體 |
 | `surname-only-sc` | 只講姓 + 稱謂 |
-| `given-name-only-sc` | 只講名字 |
+| `given-name-unregistered` | 只講名字，但名冊沒有登記對應 alias → 應轉總機（由 `alias_not_found_rate` 追蹤，不算進 recall） |
+| `alias-given` | 只講名字且命中名冊 alias；只有名冊登記了對應 alias 時才出現（目前 342 題沒有這類） |
 | `dept-only-sc` | 只講部門 |
 | `dept+surname-sc` | 部門 + 姓 + 稱謂 |
 | `english` | 英文別名（ASCII，不受簡繁影響） |
@@ -88,14 +89,14 @@ stdout ③              失敗案例清單（top3 全落空的）
 | # | 欄位 | 型別 | 怎麼算 | 沒有值的時候 |
 |---|---|---|---|---|
 | 1 | `query` | str | 實際送進 `Directory.search()` 的字串（簡體） | — |
-| 2 | `kind` | str | 測資類型（13 種，見 §4） | — |
+| 2 | `kind` | str | 測資類型（見 §4） | — |
 | 3 | `top1` | str \| null | 第一名候選的 `pid` | 無候選 → `null` |
 | 4 | `top1_name` | str \| null | 該人的顯示名（繁） | 無候選 → `null` |
 | 5 | `top1_score` | float | 該人的分數 | 無候選 → `0.0` |
 | 6 | `margin` | float | `top1 − top2`（前二名差距） | 候選 < 2 → `1.0`（不是 0） |
-| 7 | `hit1` | bool | `top1 ∈ expect` | `expect` 為空（dept-only）→ `false` |
+| 7 | `hit1` | bool | `top1 ∈ expect` | `expect` 為空（`dept-only`／`given-name-unregistered`）→ `false` |
 | 8 | `hit3` | bool | 前三名任一 `∈ expect` | 同上 → `false` |
-| 9 | `dept_ok` | bool \| null | 偵測到的部門 == `dept_expect` | 只有 `dept-only-sc` 有值，其餘 `null` |
+| 9 | `dept_ok` | bool \| null | 偵測到的部門 == `dept_expect` | 有 `dept_expect` 才有值：`dept-only-sc`／`dept+surname-sc`／`homophone-dept-sc`；其餘 `null`（`dept_acc` 只聚合 `dept-only-sc`） |
 | 10 | `flagged` | bool \| null | `needs_clarification()` 的結果（要不要追問） | `dept-only-sc` → `null`（沒有澄清問題） |
 | 11 | `why` | str | 為什麼要／不要澄清（[`glossary.md`](glossary.md) §8）或 `dept-only` | — |
 | 12 | `hit1_or_any` | bool | 「有沒有抓到任何一個人」（`top1 != null`） | 只用來判 `garbage`：亂句不該有候選 |
@@ -136,22 +137,27 @@ stdout ③              失敗案例清單（top3 全落空的）
 | `top1_easy_sc` | `{exact-sc, drop-char-sc, english, filler-sc}` 的 `hit1` 平均 | **1.000** | 越高越好；掉下來代表比對層退步 |
 | `top1_easy_tc` | `{exact-tc}` 的 `hit1` 平均 | **1.000** | 繁體對照組，應與 `top1_easy_sc` 一致 |
 | `sc_vs_tc_gap` | `exact-sc` 的 `hit1` − `exact-tc` 的 `hit1` | **0.000** | ≠ 0 代表簡繁正規化出問題 |
-| `recall3_hard` | `HARD_KINDS`（同音／只講姓／只講名／部門+姓）的 `hit3` | **1.000** | 疑難題「正確的人在不在前三名」 |
+| `recall3_hard` | `RECALL_KINDS`（`HARD_KINDS` ＋ `homophone-dept-sc`；同音／只講姓／部門+姓）的 `hit3` | **1.000** | 疑難題「正確的人在不在前三名」 |
 | `top1_homophone` | `{homophone-sc}` 的 `hit1` | **0.778** | **不該追求 1.0**：同音題本來就該靠澄清，這裡只確認沒有系統性偏好 |
 | `homophone_dept_top1` | `{homophone-dept-sc}` 的 `hit1` | **1.000** | 同音＋報部門時 top-1 應該正確；掉下來代表「部門線索沒被用來解歧義」（`DEPT_SCOPE_MIN` 或部門加權壞了） |
 | `dept_acc` | `{dept-only-sc}` 的 `dept_ok` | **1.000** | 只講部門時有沒有轉對 |
-| `clarify_rate_hard` | `HARD_KINDS` 被標記澄清的比例 | **0.990** | 越接近 1 越安全（該問的都有問） |
+| `clarify_rate_hard` | `HARD_KINDS`（同音／只講姓／部門+姓）被標記澄清的比例 | **0.990** | 越接近 1 越安全（該問的都有問） |
 | `clarify_rate_easy` | `STRICT_KINDS`（`exact-sc, exact-tc, english, filler-sc`）被標記澄清的比例 | **0.230** | 使用者體驗成本；**多數是名冊裡真的有同音兄弟，不是誤報** |
 | `garbage_false_match` | `{garbage}` 中 `hit1_or_any` 為 true 的比例 | **0.000** | **亂句硬抓到人** —— 比同音字選錯嚴重，必須 0 |
 | `nickname_trap_clarify` | `{nickname-trap}` 被標記澄清的比例 | **1.000** | 「王伯伯」這種稱謂要問，不能直接轉 |
 | `no_requery_rate` | 跑決策層後，`{surname-only-sc, nickname-trap, drop-char-sc}` 中 `action != ask` 的比例 | **1.000** | 只講姓／只有稱謂／漏字時**不該再追問**（走 `surname-only` / `incomplete-name` fallback 或直接轉） |
 | `third_ask_rate` | 第 1 輪追問的題目，在第 2 輪仍為 `ask` 的比例 | **0.000** | 兩輪為上限：第 2 輪仍歧義就 `clarify-exhausted` → fallback |
 | `garbage_false_route` | 跑決策層後，`{garbage}` 中 `action ∈ {route, route_dept}` 的比例 | **0.000** | **亂句被轉出去**（轉人或轉部門都算）—— 靠 `has_routing_cue()` 閘門擋住 |
-| `dept_route_recall` | `{dept-only-sc}` 中真的有轉到部門的比例 | **1.000** | 確認閘門沒把正常流量也擋掉 |
-| `alias_not_found_rate` | 只講名但 alias 沒登記時，`action == not_found` 的比例 | **1.000** | 應為 1：不亂轉、不掛線，走 not-found 到總機 |
+| `dept_route_recall` | `{dept-only-sc}` 中 `action ∈ {route, route_dept}` 的比例（目前 `route` 也計入；要嚴格只算 `route_dept` 需改 `eval.py`，**程式待修**） | **1.000** | 確認閘門沒把正常流量也擋掉 |
+| `alias_not_found_rate` | 只講名但 alias 沒登記時，`reason == "alias-not-found"` 的比例 | **1.000** | 應為 1：不亂轉、不掛線，走 not-found 到總機 |
+
+`clarify_rate_hard` 的分母是 `HARD_KINDS`（同音／只講姓／部門+姓）；只講名且 alias 沒登記的
+`given-name-unregistered` 不在這個分母，另由 `alias_not_found_rate` 追蹤。
 
 `HARD_KINDS` / `STRICT_KINDS` 的定義在 `eval.py` 頂端（`HARD_KINDS`、`STRICT_KINDS` 常數），
 `drop-char-sc` 刻意**只算在 `EASY_KINDS`、不算在 `STRICT_KINDS`** —— 少一個字本來就有歧義。
+`HARD_KINDS` 目前仍寫著舊標籤 `given-name-only-sc`（`eval.py` 已不再產生這個 kind，該項形同
+空集合，**程式待修**）。
 
 **判讀順序**：先看 `silent_wrong_rate`（安全），再看 `recall3_hard`（能力），
 最後才看 `clarify_rate_easy`（體驗）。前者不合格時，後者再漂亮都沒有意義。
@@ -204,7 +210,7 @@ stdout ③              失敗案例清單（top3 全落空的）
   `result` 端總預算 3 秒（`RESULT_TIMEOUT`），沒有熔斷、沒有指數退避——WS 卡在握手就是等滿
   3 秒才落總機。401／403 與壞 key 一律落總機（2026-11-23 翻案 PoC 的掛線；
   `auth`／`ws` 分界見 [`agi-protocol.md#errors`](agi-protocol.md#errors)）。
-- **並發閘 4（寫死）**：四個沒走到 `result` 的 session 在 20 秒 TTL 內佔滿閘，期間新話務
+- **並發閘 4（預設；生產不暴露）**：四個沒走到 `result` 的 session 在 20 秒 TTL 內佔滿閘，期間新話務
   全量落總機（availability cliff）。
 - **TTL 20 秒＝隱私窗口**：OPERATOR／HANGUP／ERROR／閘滿 stub 的 wav 由 sweeper 在 20 秒內刪；
   服務若被 `kill -9`，sweeper 也停止，殘留檔沒有外部清理器。`scripts/agi.sh status` 以
@@ -218,7 +224,7 @@ stdout ③              失敗案例清單（top3 全落空的）
 <a id="regression"></a>
 ## 7. 回歸與 golden 紀律
 
-- 改 `dialname/`、`eval.py`、`data/people.json` 之後跑 `uv run pytest -q`；`scripts/install-hooks.sh`
+- 改 `dialname/`、`eval.py`、`data/people.json` 之後跑 `uv run python -m pytest -q`；`scripts/install-hooks.sh`
   裝的 pre-commit 會在這些路徑 staged 時先跑 L0／L1，非零即拒絕 commit。
 - **不要為了讓測試過而放寬門檻**：先判斷是規則錯還是測資錯。
 - 刻意改行為 → 用 `scripts/calls.py update` 搬 `expect` 並看 diff，再依 `tests/golden/README.md`

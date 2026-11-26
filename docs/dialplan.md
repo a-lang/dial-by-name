@@ -165,6 +165,10 @@ exten => s,1,Set(DBN_IDX=1)
  same => n(done),Return()
 ```
 
+> `q-operator`：`ask` 分支先 `Set(DBN_ATTEMPT=$[${DBN_ATTEMPT}+1])`、下一行才判斷 `>= 2` 跳
+> `ask_rec`，所以第一次 `ask` 進來必定跳過 `Background(q-operator)`——**clarify 輪目前不提供按 0**，
+> 這支音檔未使用（程式待修：要恢復就把它移到 `Background` 之後）。
+
 <a id="apply"></a>
 ## 3. 套用（GUI 接入）
 
@@ -244,7 +248,7 @@ print(handle_turn('/var/lib/asterisk/sounds/dbn/zh/welcome.wav', 1, stt=SttClien
 出現 `retry` 代表 STT 回空字串或呼叫失敗（音檔、key、網路）；`hangup`／`no-intent`
 代表意圖詞判定異常；`route`／`route_dept` 代表名冊或比對異常。
 三項都對再撥號：第一通可用 Local channel 撥 `s@dbn-main` 演練，不佔外線；
-判讀看 JSONL 的 `DBN_ACTION`／`reason`（落點見 §3.9）。
+判讀看 JSONL 的 `decision.action`／`decision.reason`（落點見 §3.9）。
 
 ### 3.9 STT 失效時會怎樣（Realtime）
 
@@ -308,8 +312,9 @@ STT 回 200 但聽成亂句**不算失效**：走正常決策，多半落在 `no
   `result` 要多等一次 ASR commit（約 150–400 ms）。成功標準 #1 的 p95 < 300 ms 有風險，
   R3 要用 `stream.commit_ms` 分佈驗；常態輪（先停話）不受影響。
 - **「追問部門」的那一輪**沒有按 0 的逃生口（`DBN_REC_OPTS` 清空、不播 `q-operator`）。
-  但「沒聽清楚」的重試錄音仍保留按 0：`retry` 不增加 `DBN_ATTEMPT`，屬於同一輪，
-  而連話都說不出來的來電者只剩這條路。
+  第一輪的 retry 仍保留按 0（`retry` 不增加 `DBN_ATTEMPT`，屬於同一輪，`DBN_REC_OPTS` 仍是 `o`）；
+  clarify 輪及其後的 retry 不提供——`ask` 已清空 `DBN_REC_OPTS`，`retry` 不恢復。
+  連話都說不出來的來電者只剩這條路。
   追問後聽不懂又答不出來的來電者會沉默兩次 → 掛線，不是轉總機；這是 2026-11-14 的刻意取捨。
 - frontend socket idle 25 秒；handler 另有 25 秒 deadline（`agi_server.py` 用 thread join）。
   handler 超時會直接關閉連線；dialplan 是否拿到 `AGISTATUS=FAILURE` 需在實機用 `agi set debug` 驗證，

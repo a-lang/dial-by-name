@@ -16,10 +16,10 @@
 | `q-say-full-name` | **預設的澄清句**：「請說全名」——不確認、不列舉、不洩漏 | 需要澄清、而且不需要問部門時 |
 | `q-which-dept` | 「請問是哪個部門？」 | 候選跨部門、來電者沒提部門時 |
 | `q-dept-who` | 「請問您要找哪一位？」 | `dept-scoped-ask` 的第 2 段，緊接在 `dept-<dept_id>` 之後（**待錄**） |
-| `q-operator` | 「或按零，由專人為您服務」 | 只在 `ask` 後播 |
+| `q-operator` | 「或按零，由專人為您服務」 | **目前未使用**：clarify 輪不提供按 0（`ask` 分支在 `Background` 前就把 `DBN_ATTEMPT` 加到 2 並跳 `ask_rec`，程式待修） |
 | `retry` | 「請問您找哪一位？」 | 沒聽清楚、同一輪重問（`retry` 不增加 `DBN_ATTEMPT`） |
 | `transferring` | 「為您轉接」 | 預設，不帶名字 |
-| `to-operator` | 「正在為您轉接總機」 | `fallback` 轉總機前 |
+| `to-operator` | 「正在為您轉接總機」 | 所有轉總機前（`fallback`／`Dial` 失敗／`AGISTATUS` 失敗／`RECORD_STATUS=OPERATOR`／按 0） |
 | `not-found` | 「不好意思，無法確認您要找的對象」 | 所有 `fallback` 轉總機前；**服務故障不播** |
 | `goodbye` | 「謝謝您的來電」 | 任何掛線前 |
 

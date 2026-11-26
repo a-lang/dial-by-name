@@ -23,7 +23,7 @@
 1. dialplan 播 welcome、Record() 收音；AGI start 登記 session 後立即返回
 2. dialplan 播 processing，AGI result 收 WAV tail
 3. AGI 把 WAV 送 ElevenLabs Realtime STT → 逐字稿（唯一外送）
-4. core 在本機做正規化、拼音、模糊音 → top-8 候選（1–3 ms）
+4. core 在本機做正規化、拼音、模糊音 → 候選收斂（top-k，預設 20；毫秒級）
 5. decide() 給出 route／route_dept／ask／hangup
 6. dialplan 依 DBN_* 轉接、播下一句或送總機
 ```
@@ -82,7 +82,7 @@ userman 模式的 `data/aliases.json`、dialplan 貼上與冒煙撥號是 [`depl
 
 - **真實 STT 錯誤率未量測**：8 kHz 窄頻＋台灣國語＋姓名的 WER／CER 要靠你自己的錄音。
 - **keyterms 未啟用**：ElevenLabs keyterms 的 A/B 還沒做（模型吐簡體，繁體 keyterm 可能白費）。
-- **並發閘 4（寫死）**：四個沒走到 `result` 的 session 在 20 秒 TTL 內佔滿閘，期間新話務全落總機。
+- **並發閘 4（預設；生產不暴露）**：四個沒走到 `result` 的 session 在 20 秒 TTL 內佔滿閘，期間新話務全落總機。
 - **TTL 20 秒＝隱私窗口**：殘留 wav 由 sweeper 在 20 秒內刪；`kill -9` 後沒有外部清理器。
 - **`disclose_names=True` 未完整**：念姓名所需四支固定句與 `agi_server.py` 旗標未實作。
 

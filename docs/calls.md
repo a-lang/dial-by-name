@@ -21,9 +21,9 @@
 
 | 層 | 跑什麼 | 何時跑 |
 |---|---|---|
-| L0 | 342 題合成測資（`tests/test_eval_golden.py`） | 每次 `uv run pytest` |
-| **L1** | **本文 20 通劇本＋3 個 `l1_only`**（`tests/test_call_script.py`／`scripts/calls.py check`） | 每次 `uv run pytest`；改決策層後先跑 |
-| L2 | 音檔重播（`scripts/calls.py replay LOG [--keyterms] [--ab]`） | 換 STT 模型或要驗真實音質時；按需跑、不進 CI（需 key、有 API 成本） |
+| L0 | 342 題合成測資（`tests/test_eval_golden.py`） | 每次 `uv run python -m pytest -q` |
+| **L1** | **本文 20 通劇本＋3 個 `l1_only`**（`tests/test_call_script.py`／`scripts/calls.py check`） | 每次 `uv run python -m pytest -q`；改決策層後先跑 |
+| L2 | 音檔重播（`scripts/calls.py replay LOG [--keyterms] [--ab]`） | 換 STT 模型或要驗真實音質時；按需跑、不進 CI（需 key、有 API 成本）。**只適用你自行保留的音檔**：標準場次的 wav 已由 `result` 與 TTL sweeper 刪除，不能直接 replay |
 
 改 `dialname/core.py`、`dialname/decision.py`、`dialname/agi.py` 之後，先讓 L0＋L1 綠，再考慮撥電話。
 要撥的時候照 §2 逐通撥、照 §3 判。
@@ -75,8 +75,12 @@
 1. **`action`／`reason`**：決策類別與原因必須完全相等。
 2. **`target`**：`route` 的分機、`route_dept` 的 `dept_id`（ASCII）必須完全相等；
    `fallback`／`hangup` 應為空。
-3. **`stt_status`**：只存在 JSONL（`out/calls/*.jsonl`）。非 `ok` 時**先看是不是重試路徑**
-   （`stt-empty`／`stt-error`／`timeout`／`401`），不要拿它去解釋決策漂移。
+3. **`stt_status`**：只存在 JSONL（`out/calls/*.jsonl`）。非 `ok` 時先分辨是哪種：
+   `no-speech`／`empty`（沉默或逐字稿空白，走 `retry`）、`auth`／`unavailable`／`ws`／
+   `dropped`／`timeout`／`internal`（串流失敗，走 `fallback`）、`frames-0`／`partial-only`
+   （旁路檔或 VAD 異常，走 `fallback`）。完整對照見
+   [`agi-protocol.md#errors`](agi-protocol.md#errors)。`stt-empty`／`stt-error` 是決策的 `reason`
+   （離線 `handle_turn` 路徑另有 `401` 之類的 HTTP 碼），不要拿它去解釋決策漂移。
 
 決策漂移一律算失敗。電話層落點（`fallback` 轉總機、401／403 落總機）見 [`dialplan.md`](dialplan.md) §3.9 與
 [`agi-protocol.md#errors`](agi-protocol.md#errors) 的錯誤分類。
@@ -110,8 +114,9 @@
 ### 3.5 manual 兩通怎麼判
 
 - **#19 沉默**：第一次播 retry 提示音、第二次播 `goodbye` 後掛線（`DBN_TRIES` 整通上限 1，
-  `docs/dialplan.md` §3.9）。JSON 的 `expect` 寫 `hangup/stt-empty` 是**決策層每輪的輸出**，
-  實際掛線是 dialplan 的行為；兩者都要對，不是「決策層自己掛線」。
+  `docs/dialplan.md` §3.9）。JSON 的 `expect` 寫 `hangup/stt-empty`：決策層每輪其實是
+  `retry/stt-empty`，`hangup` 是**通話層的驗收目標**，由 dialplan 的 `DBN_TRIES` 決定；
+  兩者都要對，不是「決策層自己掛線」。
 - **#20 按 0**：錄音期間按 0 → 總機。DTMF 由 dialplan 攔截，AGI 看不到；JSON 的
   `operator/dtmf-0` 是驗收目標，不是 `decide()` 的輸出。
 
@@ -158,8 +163,8 @@
 |---|---|
 | 401／403 | key 失效走 `fallback` → 總機（[`agi-protocol.md#errors`](agi-protocol.md#errors)）；20 通都在 key 正常下撥。操作測試另行（`.env` 註解 key），`auth`／`ws` 分類見同一節。 |
 | `Dial` 失敗 | 分機不存在／忙線 → 轉總機。對 queue 目的地**不會觸發**（queue 立刻應答，`DIALSTATUS=ANSWER`），必須實撥才知道。 |
-| `RECORD_STATUS=ERROR` | 錄音本身失敗，吃掉同一份 `DBN_TRIES` 預算；20 通假設錄音成功。除錯先看 JSONL 的 `wav_duration_ms` 是否 `null`。 |
-| 英文 alias | 名冊有 `David Wang`／`Amy Chen`／`Kevin` 等英文 alias；20 通只驗中文 alias（阿明／小美／筱美／小米）與中文姓名，英文 STT 拼法與大小寫未驗。 |
+| `RECORD_STATUS=ERROR` | 錄音本身失敗，吃掉同一份 `DBN_TRIES` 預算；20 通假設錄音成功。dialplan 的 `ERROR` 直接 `Goto(retry)`，不會跑 `result`，所以那一輪沒有 JSONL；先看 Asterisk 的 `RECORD_STATUS` 與 `recordings/` 權限。 |
+| 英文 alias | 名冊有 `David Wang`／`Amy Chen`／`Kevin` 等英文 alias；20 通只驗中文 alias（阿明／小美／筱美）與中文姓名；#14 小米是未登記小名的 `low-confidence-single` 下限案例。英文 STT 拼法與大小寫未驗。 |
 | 同部門同音兄弟 | 部門收斂後仍有 ≥2 個同音候選的情況。目前示範名冊的同音對都刻意跨部門（王偉／汪偉、陳美玲／程美玲、林志明／凌志明），沒有同部門同音對，20 通無從覆蓋；真實名冊要另外抽驗。 |
 
 ## 6. 執行順序
@@ -191,8 +196,9 @@
    ```
 
    > **錄音檔即時刪除（隱私政策）**：`result` 與 TTL sweeper 在服務內就刪掉兩支 wav，
-   > PBX 的 `recordings/` 沒有東西可拉，本步驟不拉 `recordings/`。場次目錄裡的
-   > `asterisk-dbnp.log` 供電話層落點核對（`Dial`／`answered` 行），`agi.log` 是 AGI 端日誌。
+   > PBX 的 `recordings/` 沒有東西可拉，本步驟不拉 `recordings/`。場次目錄只放 JSONL；
+   > AGI 日誌固定在部署根的 `out/agi.log`（`scripts/agi.sh` 的 `LOG_FILE`），要另外拉。
+   > `asterisk-dbnp.log` 不是本專案產生的檔——除非你的 PBX 另設 logger，否則不會有。
    > 日誌先留著，別邊拉邊刪（漂移要回頭查原始行）。
 
 4. **對劇本**：
@@ -201,8 +207,9 @@
    uv run scripts/calls.py compare out/calls/test-YYYYMMDD/YYYYMMDD.jsonl
    ```
 
-   `compare` 輸出五類判定（通過／漂移／STT 崩壞／未跑到／manual）；對不上的 call 單獨列出，
-   不靜默跳過。漂移照 §3 記錄與處理。
+   `compare` 的 summary 印 auto 五類計數（通過／漂移／未跑到／對不上／STT 崩壞），
+   manual 另列一行；逐通「判定」欄另有 `重撥 #N`／`疑似 #N`／`manual 未執行`。
+   對不上的 call 單獨列出，不靜默跳過。漂移照 §3 記錄與處理。
 
 5. **產 `truth.csv`**：
 

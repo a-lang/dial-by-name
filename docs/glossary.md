@@ -1,6 +1,6 @@
-# 欄位、列舉與常數
+# 欄位、列舉、常數與縮寫
 
-本檔定義型別、欄位、列舉值與常數現值。
+本檔定義型別、欄位、列舉值、常數與縮寫。
 
 每個結構的每個欄位、每個列舉字串代表什麼。**列舉值以程式碼為準，不要憑印象加值。**
 
@@ -98,7 +98,7 @@
 | `reason` | str | 為什麼做這個決定（見 §6） |
 | `speech` | str[] | 要依序播放的音檔路徑；空陣列 = 不說話直接轉 |
 | `confidence` | float \| None | 採用時的信心值（= 該候選的本地分數） |
-| `options` | `[(按鍵, 目的地, 名稱)]` | `ask` 時可按的鍵。**只放系統已知的語意（部門／總機），不放人**。電話層不消費；按 0 由 `Record(...,o)`（錄音期）與澄清句的 `Background`（播放期）實作，一律轉總機 |
+| `options` | `[(按鍵, 目的地, 名稱)]` | `ask` 時可按的鍵。**只放系統已知的語意（部門／總機），不放人**。電話層不消費；按 0 由 `Record(...,o)`（錄音期）實作，轉總機；clarify 輪不提供按 0（`q-operator` 目前未使用，見 [`sounds.md`](sounds.md)） |
 
 ### 5.1 `action` 的五個值
 
@@ -128,7 +128,7 @@
 | `surname-only` | 只講姓（含稱謂剝完只剩姓）→ 不追問，直接給總機 | `fallback` |
 | `incomplete-name` | 疑似漏字（`張豪` 對 `張家豪`：姓＋名尾字，且本人名 ≥3 字）→ 有 ≥2 候選就不猜 | `fallback` |
 | `homophone-sibling-ask` | 本地判定「與同音／近音兄弟撞名」→ **不猜**，直接澄清（跨部門時問部門） | `ask` |
-| `alias-ask` | 只講名／小名，alias（同音）命中 **多人** → 一律問部門；第 2 輪仍歧義 → `clarify-exhausted` | `ask` |
+| `alias-ask` | 只講名／小名，alias（同音）命中 **多人** → 預設問部門；候選全在同一個部門（或已提到部門）時改問全名。第 2 輪仍歧義 → `clarify-exhausted` | `ask` |
 | `alias-not-found` | 只講名／小名，發音像名冊裡某人的名，但 **alias 沒登記** → 轉總機（不是掛線） | `fallback` → 總機 |
 | `ambiguous-ask:<why>` | (d) 區：低分／拉鋸、候選 ≥2、非同音平手 → 問一句（`<why>` 來自 `needs_clarification()`）；第 2 輪 → `clarify-exhausted` | `ask` |
 | `homophone-unresolvable` | 候選 ≥2、**同部門且彼此同音／近音** → 問部門無鑑別力、問全名也敵不過 STT 同音錯誤，直接 fallback（第 1 輪就放棄）。**例外**：`is_given_name_query()` 成立（只講名）→ 改問全名 | `fallback` |
@@ -142,6 +142,7 @@
 | `title:<職稱>` | 查詢字串包含該人職稱（+0.04） |
 | `exact-name` | 查詢包含完整姓名（≥0.97） |
 | `name-prefix` | 查詢是姓名的前綴（0.55 + 0.4×長度比） |
+| `alias` | 只講名／小名命中 sidecar 的 alias 白名單（分數上限固定 0.95，門檻歸零） |
 
 ## 8. `needs_clarification()` 的 `why`
 
@@ -161,7 +162,8 @@
 
 ## 10. 測資 `kind`
 
-`eval.py` 的 13 種測資類型（`exact-sc`／`homophone-dept-sc`／`garbage`…）見
+`eval.py` 的測資類型（`exact-sc`／`homophone-dept-sc`／`garbage`…；目前 13 種實際出現，
+名冊有對應 alias 時多一種 `alias-given`）見
 [`evaluation.md`](evaluation.md)。
 
 ## 11. `eval.py` 的輸出
@@ -240,6 +242,6 @@
 |---|---|---|
 | FreePBX | FreePBX | Asterisk 的網頁管理介面；本專案用它管 userman 名冊 |
 | Asterisk | Asterisk | 電話引擎；dialplan 與 AGI 的執行環境 |
-| ElevenLabs | ElevenLabs | STT 服務供應商（Scribe v2／Realtime） |
+| ElevenLabs | ElevenLabs | STT 服務供應商（批次 `scribe_v2`；Realtime `scribe_v3_live`） |
 | userman | User Manager | FreePBX 的使用者目錄；本專案只讀 |
 | FastAGI | FastAGI | AGI 的 TCP 協定實作；`agi_server.py` |

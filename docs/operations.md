@@ -50,13 +50,16 @@ tail -n 5 out/agi.log   # 必須看到 roster: source='Test Directory' people=N 
 <a id="health"></a>
 ## 健康判定
 
-`scripts/agi.sh status` 三件事都看：
+`scripts/agi.sh status` 看三件事，但 sweeper 只在有 `out/agi.pid` 時才判：
 
 | 面 | 來源 | 判定 |
 |---|---|---|
 | 行程 | `out/agi.pid`（只有 `agi.sh start` 會寫） | PID 不存在＝`stopped`；systemd 起的進程在這裡也是 `stopped` |
 | 監聽 | `ss -ltnp` 的 4573 | 服務在 listen 才可能接得到 AGI |
-| sweeper | `out/agi.health.json`（每 **1 秒**寫一次，原子換檔） | heartbeat 超過 **5 秒**沒更新／pid 不符／檔不存在 → `sweeper: DEAD`，退出碼 1 |
+| sweeper | `out/agi.health.json`（每 **1 秒**寫一次，原子換檔） | **有 `out/agi.pid` 才判**：heartbeat 超過 **5 秒**沒更新／pid 不符／檔不存在 → `sweeper: DEAD`，退出碼 1；沒有 pid 檔只印 `jsonl:`，不判 sweeper |
+
+**systemd 模式請用 `systemctl status`**：systemd 不寫 `out/agi.pid`，`scripts/agi.sh status`
+在那條路上只剩 `jsonl:` 一行。
 
 `sweeper: DEAD` 不是加分項：sweeper 死掉時行程與 port 可能都還在，但過期 session 會永佔並發閘
 （4 個），之後新話務全落總機。`active` 是當下的 session 數，`jsonl:` 是最新一輪的 `ts`。
@@ -93,7 +96,7 @@ cd /var/lib/asterisk/dial-by-name
 cp -p .env /tmp/dbn.env.bak
 sed -i '/^ELEVENLABS_API_KEY=/s/=.*/=/' .env   # 清空值，不刪行
 scripts/agi.sh restart
-# 撥一通 → out/calls/YYYYMMDD.jsonl 該輪應見 "stt_status":"auth"、DBN_ACTION=fallback → 總機
+# 撥一通 → out/calls/YYYYMMDD.jsonl 該輪應見 "stt_status":"auth"、"decision":{"action":"fallback"} → 總機
 mv /tmp/dbn.env.bak .env && scripts/agi.sh restart
 ```
 
@@ -132,7 +135,7 @@ sudo cp dial-by-name-agi.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now dial-by-name-agi
 systemctl --no-pager status dial-by-name-agi   # 權威：active (running)
-scripts/agi.sh status                          # 只看 sweeper 段（pid 檔不認 systemd 進程，會顯示 stopped）
+scripts/agi.sh status                          # 只有 jsonl 段：沒有 out/agi.pid 就不判 sweeper
 grep "roster: source" out/agi.log | tail -1    # 金絲雀：people=N
 ```
 
@@ -144,7 +147,8 @@ grep "roster: source" out/agi.log | tail -1    # 金絲雀：people=N
 - `Restart=on-failure` 是對無聲死亡的防護，不是萬靈丹——systemd 模式的權威是
   `systemctl status`，手動模式的權威是 `scripts/agi.sh status`。
 - `scripts/agi.sh status` 的 pid 判定讀 `out/agi.pid`（只有 `agi.sh start` 會寫）：
-  systemd 起的進程在它眼裡是 `stopped`；同一段輸出裡的 `ss` 監聽行與 sweeper heartbeat 仍有效。
+  systemd 起的進程在它眼裡是 `stopped`，而且因為沒有 pid 檔，它**不判 sweeper**、只印 `jsonl:`；
+  systemd 模式的健康判定請用 `systemctl status`。
 - DB 連線走 `/etc/freepbx.conf` fallback；要唯讀帳號就補 `DBN_MYSQL_*` 四鍵到 `.env`。
 - 裝 systemd 前先 `scripts/agi.sh stop`；裝了之後不要再手動 `start`（兩邊搶 4573）。
 - `--source-directory` 是 unit 裡的死值：換 userman 目錄名要改 unit 或加 drop-in，再 `daemon-reload`。
@@ -155,14 +159,14 @@ grep "roster: source" out/agi.log | tail -1    # 金絲雀：people=N
 | 位置 | 內容 |
 |---|---|
 | `out/agi.log` | 啟動、`roster:`、`reload ok/failed`、traceback |
-| `out/calls/*.jsonl` | 每輪逐字稿＋決策（`stt_status`／`stream.status`／`DBN_ACTION`／`reason`） |
+| `out/calls/*.jsonl` | 每輪逐字稿＋決策（`stt_status`／`stream.status`／`decision.action`／`decision.reason`） |
 | `out/agi.health.json` | sweeper heartbeat（每 1 秒） |
 | `out/agi.pid` | 背景模式 PID（只有 `agi.sh start` 會寫） |
 | `recordings/` | 通話中暫存 wav；靜止時應為空 |
 
 排障順序：
 
-1. **撥了沒反應或落總機**：先看該輪 JSONL 的 `DBN_ACTION`／`reason`／`stt_status`；
+1. **撥了沒反應或落總機**：先看該輪 JSONL 的 `decision.action`／`decision.reason`／`stt_status`；
    `auth`／`ws` 與失敗分派的權威是 [`agi-protocol.md#errors`](agi-protocol.md#errors)。
 2. **`roster:` 人數不對**：查 `AGI_SOURCE_DIRECTORY` 是否逐字等於 userman 目錄名、userman 是否已同步。
 3. **`reload failed`**：服務還在跑舊索引；先跑 `check_aliases.py`，修好再 reload。

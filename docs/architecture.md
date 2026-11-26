@@ -2,8 +2,9 @@
 
 本檔說明一通電話在哪些層之間流動、狀態放在哪裡，以及為什麼 AGI 只做 STT 與決策。
 
-邊界只有兩條：**AGI 只做 STT＋決策**、**電話層只認 `DBN_*`**。收音、播音、轉接與回合計數
-全在 dialplan，AGI 在一輪之內保存 session，跨輪狀態只有一處。
+邊界只有兩條：**AGI 只做 STT＋決策**、**電話層只認 `DBN_*`**（以及 `AGISTATUS`／
+`RECORD_STATUS` 的失敗分派）。收音、播音、轉接與回合計數全在 dialplan，AGI 在一輪之內保存
+session，跨輪狀態只有一處。
 
 ## 四層
 
@@ -14,23 +15,45 @@
 | 決策核心 | 正規化、拼音／模糊音、評分、收斂、決策樹 | `dialname/core.py`、`dialname/decision.py` |
 | 名冊 | 人員與部門的來源；正式版讀 userman | `dialname/core.load_directory()`、`dialname/pbx_directory.py` |
 
-```
-來電 ──► FreePBX dialplan（收音／播音／轉接／回合，全在 dialplan）
-             │  Record → processing
-             ▼
-        FastAGI 127.0.0.1:4573        ── agi_server.py（threaded，SIGHUP 原子重載）
-             │
-             ▼
-        AGI start / result   ── dialname/agi.py（兩相）
-             │  start：旁路 wav 登記 session，立即返回（不設通道變數）
-             │  result：① tail 旁路 wav → Realtime STT（ElevenLabs）→ 逐字稿
-             │  ② core：正規化 → 拼音 → 模糊音 → top-8 候選（1–3 ms）
-             │  ③ decision.decide()：轉／問一句／交總機
-             ▼
-        DBN_ACTION / DBN_REASON / DBN_TARGET / DBN_DEPT / DBN_SPEECH / DBN_CANDS
-             │
-             ▼
-        dialplan 依 DBN_* 動作：Dial(Local/…@from-internal) 或 播下一句
+```mermaid
+flowchart TD
+    Caller([來電]) --> DP["電話層：FreePBX dialplan<br/>welcome → 收音"]
+    DP -->|"AGI start"| ST["AGI 服務：start<br/>登記 session／開 Realtime WS"]
+    ST -->|"立即返回"| MM["電話層：MixMonitor 旁路<br/>-in.wav"]
+    MM --> REC["電話層：Record 主檔<br/>.wav"]
+    REC --> STOP["電話層：StopMixMonitor"]
+    STOP --> PROC["電話層：Playback processing"]
+    PROC -->|"AGI result"| RES["AGI 服務：result<br/>取逐字稿／關 session／刪 wav"]
+    ST -. 開 WS .-> STT["ElevenLabs Realtime<br/>scribe_v3_live"]
+    MM -. 旁路音訊 .-> STT
+    STT -. 逐字稿 .-> RES
+    ST -. 登記 session .-> TM[("TurnManager<br/>4 sessions／TTL 20s")]
+    RES -. 清理 session .-> TM
+    RES -->|"① 候選收斂（top-k 20）"| CORE["決策核心：正規化 → 拼音／模糊音"]
+    ROSTER["名冊：people.json／userman"] -. 載入索引 .-> CORE
+    CORE -->|"② Candidate[]"| DEC["決策核心：decide()"]
+    DEC -->|"Decision"| DBN["AGI 服務：對映六個 DBN_*"]
+    DBN --> ACT{"DBN_ACTION"}
+    ACT -->|"route"| DIAL["Dial(Local/&lt;ext&gt;@from-internal)"]
+    ACT -->|"route_dept"| DEPT["轉部門 queue"]
+    ACT -->|"ask"| ASK["Playback speech → 下一輪"]
+    ACT -->|"retry"| RETRY["Playback retry → 重新收音"]
+    ACT -->|"fallback"| OP["轉總機"]
+    ACT -->|"hangup"| BYE["Playback goodbye → Hangup"]
+    ASK -. 下一輪 .-> DP
+    RETRY -. 下一輪 .-> DP
+    RES -. 失敗／無 session .-> OP
+
+    classDef phone fill:#f6f2e8,stroke:#8a7f6a,color:#2b2b2b
+    classDef agi fill:#e8eef6,stroke:#5b7391,color:#1f2d3d
+    classDef core fill:#eaf3ea,stroke:#5b8a5b,color:#1f3d1f
+    classDef ext fill:#f6e8e8,stroke:#a05b5b,color:#3d1f1f
+    classDef roster fill:#f3eaf6,stroke:#8a5b91,color:#3d1f3d
+    class DP,MM,REC,STOP,PROC,ACT,DIAL,DEPT,ASK,RETRY,OP,BYE phone
+    class ST,RES,TM,DBN agi
+    class CORE,DEC core
+    class STT ext
+    class ROSTER roster
 ```
 
 五個階段（收音・轉錄・收斂・決策・執行）逐段的輸入輸出見
@@ -55,7 +78,7 @@
 
 | 常數 | 值 | 作用 |
 |---|---|---|
-| `MAX_SESSIONS` | **4**（寫死） | 並發閘。四個沒走到 `result` 的 session 在 TTL 內佔滿閘，期間新話務全落總機（stub session → `fallback`） |
+| `MAX_SESSIONS` | **4**（預設；生產不暴露） | 並發閘。四個沒走到 `result` 的 session 在 TTL 內佔滿閘，期間新話務全落總機（stub session → `fallback`） |
 | `TTL_SECONDS` | **20.0** | `result` 沒來的分支（OPERATOR／HANGUP／ERROR／閘滿）由 sweeper 到期清理 |
 | `COMMIT_WAIT` | 1.0 | EOF 補 commit 後等最後一則 transcript 的上限 |
 | `RESULT_TIMEOUT` | 3.0 | `result` 端總預算，與 tailer／WS 的 EOF 收尾並行，不是串行疊加 |
@@ -103,8 +126,8 @@ label `dept_<id>` 與音檔尾碼 `dept-<id>`；中文部門名只進 log／payl
 **按鍵只用來選「部門／總機」，永遠不用來盲選人**：來電者若分得出是哪一位就不需要澄清；
 分不出來，更不可能知道 1 和 2 各是誰。`Decision.label` 保留姓名，但只給 log 用，不進 `speech`。
 
-- 唯一的第三方是 STT（ElevenLabs Scribe v2），它聽到的本來就是來電者的語音；決策 100% 本地，
-  整本電話簿不出機器。
+- 唯一的第三方是 STT（ElevenLabs Realtime，`scribe_v3_live`；批次工具仍用 `scribe_v2`），
+  它聽到的本來就是來電者的語音；決策 100% 本地，整本電話簿不出機器。
 - `recordings/` 的暫存 wav 在 `result` 即刪，其餘由 sweeper 在 **TTL 20 秒**內清；
   `kill -9` 後沒有外部清理器（已知限制）。
 - `data/aliases.json` 與 `sounds/zh/manifest.json` 含真名：不入版控、權限 600、不對外 serve；
@@ -119,7 +142,7 @@ dialname/core.py           正規化、拼音變體、模糊音、評分、索�
 dialname/decision.py       決策樹 decide()、clarify_plan、姓名音檔命名（clip_hash／manifest）
 dialname/agi.py            AGI 兩相處理器（start／result）＋薄協議層（不碰電話層）
 dialname/stt_client.py     ElevenLabs Scribe v2 批次 adapter（wav → Transcript）
-dialname/stt_realtime.py   ElevenLabs Realtime WS client（PCM 串流／事件解析／錯誤分類）
+dialname/stt_realtime.py   ElevenLabs Realtime WS client（`scribe_v3_live`；PCM 串流／事件解析／錯誤分類）
 dialname/turns.py          TurnManager：一輪一 session、WAV tail、TTL sweeper
 dialname/health.py         sweeper heartbeat／status 判定（out/agi.health.json）
 dialname/pbx_directory.py  正式名冊入口：userman＋aliases.json＋departments.json
@@ -130,14 +153,14 @@ docs/architecture.md       本檔：分層、兩相、session、名冊、隱私
 docs/decision-logic.md     不變式、決策順序、評分門檻、alias 政策、外部模型
 docs/agi-protocol.md       五階段 I/O、start／result、DBN_*、錯誤分類、JSONL
 docs/dialplan.md           dialplan 片段、DBN_* 變數、電話層失敗分派
-docs/glossary.md           欄位／列舉值字典、常數表
+docs/glossary.md           欄位、列舉、常數與縮寫
 docs/sounds.md             19 支台詞、格式、命名與 hash
 docs/evaluation.md         指標、效能、合成資料警語、限制、golden 紀律
 docs/calls.md              20 通劇本協議與判定（表格由 scripts/calls.py table 產生）
 data/people.json           40 人／8 部門的合成示範名冊
 data/departments.json      8 部門定義（dept_id 契約）
 data/call_script.json      20 通劇本的機器判定
-scripts/                   agi.sh／calls.py／check_sounds.py／check_aliases.py／jev_probe.py／install-hooks.sh
+scripts/                   agi.sh／calls.py／check_sounds.py／check_aliases.py／jev_probe.py／install-hooks.sh／check_docs_links.py
 tests/                     pytest：L0 golden、L1 劇本、AGI、Realtime、名冊、alias 政策…
 ```
 

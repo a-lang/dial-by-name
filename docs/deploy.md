@@ -178,7 +178,7 @@ tail -n 5 out/agi.log
 
 先跑 [`dialplan.md`](dialplan.md) §3.8 的兩項檢查（STT 對外、決策管線，不必撥號），
 再用 Local channel 撥 `s@dbn-main`；正式進線走 Custom Destination／Inbound Route。
-判讀看 JSONL 的 `DBN_ACTION`／`reason`。之後照 [`calls.md`](calls.md) 撥 20 通劇本。
+判讀看 JSONL 的 `decision.action`／`decision.reason`。之後照 [`calls.md`](calls.md) 撥 20 通劇本。
 
 <a id="update"></a>
 ### 10. 更新既有部署

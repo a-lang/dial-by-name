@@ -72,7 +72,8 @@ Decision(action, target, label, reason, speech: list[str], confidence, options)
 | `DBN_CANDS` | 候選 `pid:score&…`，給**下一輪**收斂用 | `u001:1.0&u002:0.85` |
 
 `DBN_CANDS` 是跨輪唯一的狀態載體：第二輪只講部門時，`result` 用它把上一輪候選收斂到
-該部門（剩 1 人就直接轉）；沒有交集才 `dept-only` 轉整個部門。值一律經 `_ascii_result()`
+該部門（剩 1 人就直接轉）。**沒有交集時不會轉整個部門**：記 `dept_ignored`、`dept=None`，
+第二輪 0 候選走 `no-candidate-giveup` → 總機。值一律經 `_ascii_result()`
 檢查（不含控制字元、`"`、`\`），不合格 → `fallback`／`non-ascii`。
 
 ## 4. `Decision` → PBX 動作
@@ -95,7 +96,7 @@ Decision(action, target, label, reason, speech: list[str], confidence, options)
 （`alias-ask`）；查無但發音像某人的名 → `fallback`（`alias-not-found`）→ 總機。
 亂句（不像任何人的名）仍走 `no-intent` → 掛線，不會被送進總機。
 
-## 5. 實測對映（10 句，涵蓋所有分支）
+## 5. 實測對映（10 句，涵蓋主要分支）
 
 | 輸入（逐字稿） | 正規化 | 部門 | top-2 候選(分數) | 需澄清 | 決策 | 目標 | speech | options |
 |---|---|---|---|---|---|---|---|---|
@@ -111,7 +112,8 @@ Decision(action, target, label, reason, speech: list[str], confidence, options)
 | `业务部的王伟` | `王偉` | 業務部 | 王偉 1.00 / 王小明 0.77 | N(direct:confident) | **route** | `2101` | `transferring` | — |
 
 注意後三欄的分工：**決策決定「做什麼」，`target` 決定「去哪裡」，`speech` 決定「說什麼」**，
-三者互不推導。
+三者互不推導。表中沒有 `hangup`（`no-intent`）與 alias 分支（`alias-ask`／`alias-not-found`），
+見 §4 與 [`decision-logic.md`](decision-logic.md)。
 
 <a id="errors"></a>
 ## 6. STT 錯誤分類：`auth` 與 `ws`
@@ -157,7 +159,7 @@ JSONL 的 `stream.error`／`stream.detail`（2026-11-25 裁定維持現狀；電
 | `candidates[]` | `[{pid, score}]` | 前 5 名候選（`result` 時＝帶回去的 `DBN_CANDS`） |
 | `decision.action` / `.target` / `.reason` / `.speech` | str／str?／str／str[] | 決策結果（`offline` 路徑另有 `.confidence`） |
 | `stt_status` | str | §6 的分類 |
-| `carried_from_prev` / `dept_ignored` | bool／str | 只在發生時出現：候選是上一輪經部門過濾來的／這句部門被當成澄清答案且無交集 |
+| `carried_from_prev` / `dept_ignored` | bool／str | 只在 `handle_turn` 的離線 JSONL（`log_dir` 非 `None`）出現：候選是上一輪經部門過濾來的／這句部門被當成澄清答案且無交集。生產 `handle_result` 的 JSONL 目前不記這兩個欄位 |
 
 ## 8. 對映不是嚴格 1:1 的地方
 
@@ -165,4 +167,4 @@ JSONL 的 `stream.error`／`stream.detail`（2026-11-25 裁定維持現狀；電
 |---|---|
 | 逐字稿 → 候選 **1:N** | 一句話收斂出最多 `top_k` 個候選（預設 20，決策只用前幾個） |
 | 候選 → 澄清句 **N:1** | 預設只播一句「請說全名」（不列姓名）；只有 `disclose_names=True` 時才退化成「N 選 1」（同姓或同音、且 ≥ top×0.8） |
-| `DBN_ACTION` 六值 → `Decision.action` 五值 | `retry` 是**傳輸層**值（空逐字稿／STT 失敗／Realtime 無 commit 且無 partial＝沉默），不在 `Decision.action` 裡；由 `handle_result()`（生產）或 `handle_turn()`（離線工具）在呼叫 `decide()` 之前直接產生，上限由 dialplan 的 `DBN_TRIES` 決定（見 [`dialplan.md`](dialplan.md) §3.9） |
+| `DBN_ACTION` 六值 → `Decision.action` 五值 | `retry` 是**傳輸層**值：生產 `handle_result()` 只有沉默（`no-speech`：無 commit 且無 partial）與空逐字稿（`empty`，經 `handle_turn()`）→ `retry`；STT 失敗（`session.error`：auth／ws／timeout…）一律 `fallback`。離線 `handle_turn()` 的 `stt-error → retry`／`401 → hangup` 不套用到電話層。上限由 dialplan 的 `DBN_TRIES` 決定（見 [`dialplan.md`](dialplan.md) §3.9） |
