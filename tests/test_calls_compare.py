@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """`scripts/calls.py compare`／`truth-out`：場次日誌的機器判定。
 
-對齊方式與判定規則見 `docs/design.md` §回歸三層 與 `docs/calls.md` §3：
+對齊方式與判定規則見 `docs/evaluation.md#regression` 與 `docs/calls.md` §3：
 逐字稿先過 `dialname.core` 正規化（含簡→繁）；文字不同但拼音相同（含 core 的模糊音）
 視為同句並標「STT 變體」，不丟進 STT 崩壞；錨點之間才用撥號順序補位。
 STT 崩壞用可操作定義：正規化後 0 候選、部門解析失敗，**且**拼音對不上任何劇本台詞、

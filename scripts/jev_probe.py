@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""模糊拉鋸（(d) 分支）可達面掃描：`docs/design.md` §外部模型。
+"""模糊拉鋸（(d) 分支）可達面掃描：`docs/decision-logic.md` §6（外部模型）。
 
 量「現行規則下，`decide()` 的 (d) 分支（本地收斂不了的多候選）在語料裡的可達率」。
 分類不重現分支順序：語句以 `handle_turn`（生產同路徑，含候選 carry）跑過一遍，
@@ -214,7 +214,7 @@ def scan(args) -> int:
             "synthetic": str(args.synthetic),
             "calls": [str(p) for p in (args.calls or [])],
             "script": str(args.script),
-            "note": "L4>0＝重開外部模型議題的訊號（docs/design.md §外部模型）；"
+            "note": "L4>0＝重開外部模型議題的訊號（docs/decision-logic.md §6）；"
                     "分類由現行規則定義，規則／門檻／名冊變更後須重跑。",
         },
         "distribution": {k: {kk: c.get(kk, 0) for kk in KLASSES}
@@ -249,7 +249,7 @@ def scan(args) -> int:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="模糊拉鋸可達面掃描（docs/design.md §外部模型）")
+    ap = argparse.ArgumentParser(description="模糊拉鋸可達面掃描（docs/decision-logic.md §6）")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     scan_ap = sub.add_parser("scan", help="掃語料的 (d) 分支可達率（L1–L4 分佈）")

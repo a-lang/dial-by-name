@@ -2,8 +2,8 @@
 """`data/people.json` 的守門測試：alias 政策的文件承諾。
 
 alias 內嵌在名冊裡是 **PoC 的暫時形狀**（正式階段 userman 沒有 alias 欄位，
-要搬到 sidecar `aliases.json`，見 `docs/design.md` §名冊來源）。在那之前，
-`docs/dialplan.md` §4.2 的三條預期（阿明直轉／小美問部門／美玲轉總機）
+要搬到 sidecar `aliases.json`，見 `docs/decision-logic.md#alias`）。在那之前，
+`docs/calls.md` §2 的三條 alias 預期（阿明直轉／小美問部門／美玲轉總機）
 就靠這份測試守住；名冊被改動時這裡會先紅。
 
 `SINGLE_CANDIDATE_FLOOR` 的兩個方向也順便釘住：下限之下轉總機、

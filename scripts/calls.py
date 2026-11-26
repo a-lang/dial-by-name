@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """劇本回歸工具（L1 決策層＋L2 音檔重播）：`table`／`check`／`update`／`compare`／`truth-out`／`stats`／`replay`。
 
-資料單一來源是 `data/call_script.json`（`docs/design.md` §回歸三層）。
+資料單一來源是 `data/call_script.json`（`docs/evaluation.md#regression`）。
 人工撥號協議、通過判準與 truth.csv 規則見 `docs/calls.md`。
 
 只 import `dialname` 套件與標準庫：比對與決策都在套件內，這支工具不重寫規則

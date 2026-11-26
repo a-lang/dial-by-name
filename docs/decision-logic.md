@@ -1,14 +1,7 @@
-# 設計與理由
+# 決策邏輯：不變式、順序與門檻
 
-> 角色：本檔是「設計理由、指標定義、門檻取值依據」的唯一來源；跨檔只指向、不複製。
-
-範圍是現行的設計、為什麼是這樣、以及改動時必須維持什麼。
-逐日取捨脈絡與真實評測紀錄留在維護者的私有 archive；對外的版本變更見 `CHANGELOG.md`。
-
-產品定位與操作說明在 `README.md`；欄位與列舉值在 `docs/glossary.md`；I/O 邊界在
-`docs/io-mapping.md`；電話層部署在 `docs/dialplan.md`；20 通劇本協議在 `docs/calls.md`。
-
----
+本檔說明決策順序、評分與門檻取值，以及改動前必須維持的不變式。逐日取捨脈絡與真實評測紀錄
+留在維護者的私有 archive；對外的變更紀錄見 [`CHANGELOG.md`](../CHANGELOG.md)。
 
 ## 1. 不變式
 
@@ -27,8 +20,7 @@
 掛線政策（第 8 條行為約定，不是結構不變式）：無意圖／無回應 → `hangup`（先播 `goodbye`）；
 已表達找人意圖但收斂不了 → 總機。
 
----
-
+<a id="order"></a>
 ## 2. 決策順序（`decide()`）
 
 一句話原則：**先把「問了也沒用」與「本地已能決定」的收掉，剩下的才問一句。**
@@ -83,8 +75,7 @@
 C 是純 margin 檢查抓不到的。判斷條件因此不能只看分數差：
 
 ```python
-# 順序很重要：同音檢查必須排在「低信心」之前
-if second is not None:
+if second is not None:      # 順序很重要：同音檢查必須排在「低信心」之前
     if second.score >= HOMOPHONE_FLOOR and confusable(top, second):
         return True, "homophone-sibling"
     if same_surname_homophone(top, second):      # 同姓＋名同音不同字（不看分數）
@@ -96,9 +87,8 @@ if top.score < CONFIDENT_SCORE:
 `confusable()` 比對的是 tight 或 loose 拼音鍵的交集。這條把合成測資的
 `silent_wrong` 從 1.3% 壓到 0。
 
----
-
-## 3. 評分與門檻：為什麼是這些值
+<a id="scoring"></a>
+## 3. 評分與門檻
 
 ### 3.1 公式
 
@@ -161,16 +151,67 @@ score = 0.20 × 漢字逐字相似
 改動必須同時（a）L0 golden 的變化可以逐條解釋、（b）L1 劇本無漂移或漂移已逐條判定、
 （c）`CHANGELOG.md` 記一筆。**不要為了讓某個測試過而放寬門檻**——先判斷是規則錯還是測資錯。
 
----
+### 3.3 決策層只吐 clip key
 
-## 4. 外部模型：移除的理由、重開條件、重建程序
+`Decision.speech` 是 `sounds/zh/<name>` 形式的**標籤**，`agi._clip_name()` 會剝掉前綴，
+變成 `DBN_SPEECH=<name>`；dialplan 再組 `Playback(${DBN_SOUND}/<name>)`，其中
+`DBN_SOUND=/var/lib/asterisk/sounds/dbn/zh`。決策層不碰檔名與音檔存在性。
+19 支台詞、`clip_hash`／manifest 與 `disclose_names=True` 的缺口見 [`sounds.md`](sounds.md)。
 
-### 4.1 現況
+<a id="alias"></a>
+## 4. 名冊來源與 alias 政策
+
+### 4.1 兩個入口，同一個形狀
+
+- `core.load_directory()`：JSON 名冊（`data/people.json`），離線開發與測試用。
+- `pbx_directory`：正式入口，讀 FreePBX userman＋sidecar。契約與 JSON 版相同，
+  所以切換與回滾都只是換入口（分層理由見 [`architecture.md`](architecture.md)）。
+
+userman 的欄位對映只認結構化的 `fname`＋`lname`（`displayname` 只進 log，不當名稱來源）；
+`default_extension` 是轉接目標，`department` 是自由文字、載入時解析成 `dept_id`，
+非空但對不到 → 載入錯誤。**只收 `source_directory` 指定的一個 directory 的人**
+（`auth` 不符者不進索引），避免跨目錄重複與測試目錄混入電話簿。逐欄來源見
+[`glossary.md`](glossary.md) §1。
+
+**姓名拆分用 `lname`／`fname`，不切字串**：複姓（歐陽明）、西方名（David Wang）、只有名（Cher）
+三種情況用「顯示名第 1 個字＝姓」去猜都會錯；欄位沒有值時才退回 `name_key` 前後切。
+`looks_incomplete_name()` 只對中文姓名生效：英文名掉一個字母是拼字錯誤，交給別名與模糊比對。
+
+### 4.2 alias 是 sidecar，不是上游欄位
+
+userman 只有姓名／分機／部門，沒有「小名／英文名」。所以「只講名」政策的 alias 來自
+sidecar `data/aliases.json`（稀疏：只列需要小名的人；沒登記的人講小名 → 總機）。
+
+- key 是 `userman_users.id`，**不是分機**（分機會被重複指派，離職者的號碼換人會讓 alias 無聲移轉）。
+- 頂層 `source_directory` 必須**逐字**等於 `userman_directories.name`。
+- 孤兒 alias（指向不存在或不在該 directory 的 user）會讓 reload **失敗並保留舊索引**。
+- `scripts/check_aliases.py` 是唯讀檢查（孤兒／重複／空值／控制字元，非零退出碼），
+  改檔後先跑它再 reload。
+- 範本 `data/aliases.example.json` 進版控；正式檔含真名，**不入版控**、權限 600。
+
+### 4.3 部門定義
+
+`data/departments.json` 是 `Department[]` 的來源（userman 只有人的自由文字 department，
+沒有部門清單）。`dept_id` 是 ASCII 鍵（`^[a-z][a-z0-9_]*$`），同時是音檔尾碼、dialplan label
+與 queue 對映鍵；改 `dept_id` 要連 queue 對映與 `dept-<id>` 音檔一起動。
+
+### 4.4 重載
+
+索引重建**只**靠 AGI 的 SIGHUP reload（`systemctl reload dial-by-name-agi`／
+`scripts/agi.sh reload`）——`fwconsole reload`（Apply Config）不影響名冊，因為 userman 不產生
+Asterisk 設定。寫檔一律「寫暫存 → `mv` 取代」，避免半寫入檔案碰上 HUP。幾百人的索引重建 < 100 ms。
+
+## 5. 決策層的外部模型邊界
+
+500 人的候選清單同時造成三件事：token 成本與延遲隨人數線性上升；選項一多，機率分布被攤平、
+`confidence` 失去鑑別度；同音字（王/汪、張/章）本來就只有**發音**能分辨，把判斷丟給語言模型
+等於要它做字串比對——那是本地 3 ms 就能做完的事。所以分工是「本地索引收斂候選 → 本地決策」，
+**整本電話簿永遠不出機器**（連少數候選也不外送，理由見 §6）。
+
+## 6. 外部模型：移除的理由、重開條件
 
 **2026-11-21 起決策層零外部模型存取**：`decide()` 沒有委派參數，`dialname/` 內沒有任何
 通往外部 API 的路徑。外部服務只剩 STT（ElevenLabs Scribe v2），它聽到的本來就是來電者的語音。
-
-### 4.2 為什麼移除
 
 原本的設計是在「本地收斂不了的多候選」那一段（也就是現在的 `ambiguous-ask:<why>`，#9）
 把候選交給外部分類器挑一個。實測該分支在**全部現有語料的可達率是 0**：
@@ -188,171 +229,12 @@ L1／L2／L3／L4；只有 L4＝`ambiguous-ask:*` 是需要外部模型的那一
 另外兩個理由：同音是**發音層的平手**，任何分類器看到的 `phonetic_score` 都是同一組數字，
 信心再高也只是「有自信地猜一個」；而「只把少數候選送出去」的邊界，靠本地規則就能守住。
 
-### 4.3 重開條件
-
-任一條件成立就重議（改動前先在 `CHANGELOG.md` 記錄）：
+重開條件（任一成立就重議，改動前先在 `CHANGELOG.md` 記錄）：
 
 1. `uv run scripts/jev_probe.py scan --calls <真實通話語料>` 掃出 **≥1 筆 L4**；
 2. 正式階段 30 通真實電話評測出現**低分多候選**案例；
 3. 規則／門檻／名冊的變更使 `scan` 的 L4 分佈**脫離 0**。
 
-### 4.4 重建程序（重開時照這個做，不是復活舊檔）
-
-舊實作已整個移除；重開時先重建、再**全部重新評估**（payload 契約、門檻、成本、個資面
-四項一併歸零，不得沿用舊結論）。
-
-1. **救回 adapter**：從私有 archive 取回 `dialname/jev_client.py` 與其測試。該 adapter
-   **從未經真 API 驗證**，只能當起點；4xx 先修 adapter（保持 dict 介面），記錄後複驗。
-2. **重接入口**：`eval.py`／`trace.py`／`agi_server.py` 加回 `--jev-live`（`eval.py` 另有
-   `--jev-model`），lazy import client，接進 `decide()`。
-3. **重建 payload 契約**：`build_payload()`／criteria 生成（`candidate_id`、`describe`、
-   `MAX_CRITERIA`、`CRITERIA_FLOOR`、`RESERVED`、`INSTRUCTIONS`）。規格以私有 archive 的
-   移除前版本 §1 與 README 的歷史章節為準；`JevLike` 協定與 `min_confidence` 一併恢復。
-   硬需求：payload 只能帶這一輪的候選（一次最多 8 筆），永遠不得帶整本名冊。
-4. **(d) 區加回委派分支**：在 `ambiguous-ask:<why>` 之前插入「第 1 輪交模型挑」的區塊與
-   `jev-*` reason（`jev`／`jev-unsure`／`jev-close-call`／`jev-no-match`／`jev-error-*`／
-   `jev-unknown-choice`）；`jev_probe.py` 的分類映射同步改回（或同時接受兩者）。
-5. **補掃描子命令**：`scripts/jev_probe.py` 加 `smoke`／`probe`（現版只有 `scan`）；
-   冒煙先跑 1 次 live，再對「本地放棄」池抽 cap ≤12 案例做鑑別力探測
-   （每題 attempt=1／2 兩形；判讀分「尊重模糊／拾回／有自信地猜錯」）。
-6. **全部重新評估**（同 §4.4 前言）。
-
-> 重建程序的完整工作手冊（含掃描子命令規格與檔案變更總覽）保留在維護者的私有 archive；
-> 若公開專案日後真要重開，以上六步是最小必要條件。
-
-### 4.5 若真的要送資料給第三方：最小化原則
-
-| 做法 | 效果 |
-|---|---|
-| `CRITERIA_FLOOR = 0.50`：低於 top×0.5 的候選不送 | 先截到 top-8，再剔除「top 一半以下」的雜訊 |
-| 只送這一通的候選，不送整本名冊 | 一次最多 8 筆 |
-| 不送 caller 號碼、通道資訊 | 只放部門提示 |
-| 逐字稿只送 `utterances` | 那是來電者自己說的話，不額外推論 |
-| 在 instructions 明講「輸入是 8 kHz 窄頻，姓名可能有同音錯字」 | 否則模型會把逐字稿當事實，逐字稿寫「汪偉」它就選汪偉 |
-
----
-
-## 5. 名冊來源與 alias 政策
-
-### 5.1 兩個入口，同一個形狀
-
-- `core.load_directory()`：JSON 名冊（`data/people.json`），離線開發與測試用。
-- `pbx_directory`：正式入口，讀 FreePBX userman＋sidecar。契約與 JSON 版相同，
-  下游（`name_match_keys()`、`alias-ask`、`alias-not-found`）不知道資料從哪來，
-  所以切換與回滾都只是換入口。
-
-userman 的欄位對映：`fname`＋`lname` 是**唯一的名稱來源**（結構化，不切字串）；
-`displayname` 不當名稱來源（本站慣例是分機號，且只填 displayname 的西方名會切錯姓），只進 log；
-`default_extension` 是轉接目標；`department` 是自由文字，載入時用部門 `name`＋`aliases`
-解析成 `dept_id`，解析不到就報錯；`title` 供第二次消歧；`cell`／`work`／`home` 供口述號碼查人；
-`auth` 決定使用者屬於哪個 directory。
-
-**只收 `source_directory` 指定的一個 directory 的人**（`auth` 不符者不進索引）：避免跨目錄重複，
-也避免把測試／管理目錄混進電話簿。
-
-**姓名拆分用 `lname`／`fname`，不切字串**：複姓（歐陽明）、西方名（David Wang）、只有名（Cher）
-三種情況用「顯示名第 1 個字＝姓」去猜都會錯。`build_person()` 才算出 `surname_key`／
-`given_key`；欄位沒有值時才退回「`name_key[:1]`＝姓、其餘＝名」。
-`looks_incomplete_name()` 只對中文姓名生效：英文名掉一個字母是拼字錯誤，交給別名與模糊比對。
-
-### 5.2 alias 是 sidecar，不是上游欄位
-
-userman 只有姓名／分機／部門，沒有「小名／英文名」。所以「只講名」政策的 alias 來自
-sidecar `data/aliases.json`（稀疏：只列需要小名的人；沒登記的人講小名 → 總機）。
-
-- key 是 `userman_users.id`，**不是分機**（分機會被重複指派，離職者的號碼換人會讓 alias 無聲移轉）。
-- 頂層 `source_directory` 必須**逐字**等於 `userman_directories.name`。
-- 孤兒 alias（指向不存在或不在該 directory 的 user）會讓 reload **失敗並保留舊索引**。
-- `scripts/check_aliases.py` 是唯讀檢查（孤兒／重複／空值／控制字元，非零退出碼），
-  改檔後先跑它再 reload。
-- 範本 `data/aliases.example.json` 進版控；正式檔含真名，**不入版控**、權限 600。
-
-### 5.3 部門定義
-
-`data/departments.json` 是 `Department[]` 的來源（userman 只有人的自由文字 department，
-沒有部門清單）。`dept_id` 是 ASCII 鍵（`^[a-z][a-z0-9_]*$`），同時是音檔尾碼、dialplan label
-與 queue 對映鍵；改 `dept_id` 要連 queue 對映與 `dept-<id>` 音檔一起動。
-
-### 5.4 重載
-
-索引重建**只**靠 AGI 的 SIGHUP reload（`systemctl reload dial-by-name-agi`／
-`scripts/agi.sh reload`）——`fwconsole reload`（Apply Config）不影響名冊，因為 userman 不產生
-Asterisk 設定。寫檔一律「寫暫存 → `mv` 取代」，避免半寫入檔案碰上 HUP。幾百人的索引重建 < 100 ms。
-
----
-
-## 6. 回歸三層與 golden 更新紀律
-
-| 層 | 跑什麼 | 何時跑 |
-|---|---|---|
-| **L0** | 342 題合成測資，與 `tests/golden/` 的指標快照＋逐題 hash 比對 | 每次 `pytest`（pre-commit 也會擋） |
-| **L1** | 20 通劇本＋3 個 `l1_only`，照真實順序呼叫 `handle_turn`（含候選 carry） | 每次 `pytest`；改決策層後先跑 |
-| L2 | 音檔重播（wav → 真 STT → `handle_turn`），決策層與 STT 層分別判定 | 換 STT 模型或要驗真實音質時，按需跑 |
-
-L0 的 golden 有兩層 hash：決策層（`eval_rows_sha256.txt`）不符 → **fail**；
-分數層（`eval_scores_sha256.txt`）不符 → **warning**。用意是讓「決策漂移」與「分數薄掉」
-分開看；分數位移是觀察訊號，不翻案決策。
-
-**golden 更新（只在你「刻意」改變行為時）**：
-
-```bash
-uv run eval.py                                   # 先看數字是否如預期
-cp out/eval_summary.json tests/golden/eval_summary.json
-uv run python tests/test_eval_golden.py --write  # 重寫兩份 hash
-```
-
-更新時要一起改 `CHANGELOG.md` 說明哪一項動了、為什麼。名冊變更另走名冊政策（§5），
-不要混在同一個 commit。
-
-**刻意變更政策**：`scripts/calls.py update` 是「我要改變行為」的工具——它把 L1 的
-`expect` 搬到新行為並列 diff（`--dry-run` 只印）。範圍只含 18 通 auto＋3 個 `l1_only`；
-台詞（`turns`）、truth、`kind`、`mode` 一律不動，manual 案例不跑。
-看到漂移時**先判斷是規則錯還是意圖改變**，不要直接 update。
-
-`scripts/install-hooks.sh` 安裝的 pre-commit 會在任何 staged 的 `dialname/*.py`、`eval.py`、
-`data/people.json` 上先跑 L0／L1，非零即拒絕 commit。繞過（`--no-verify`）要在
-`CHANGELOG.md` 記原因。
-
----
-
-## 7. 音檔與話術契約
-
-### 7.1 決策層只吐 clip key
-
-`Decision.speech` 是 `sounds/zh/<name>` 形式的**標籤**，`agi._clip_name()` 會剝掉前綴，
-變成 `DBN_SPEECH=<name>`；dialplan 再組 `Playback(${DBN_SOUND}/<name>)`，其中
-`DBN_SOUND=/var/lib/asterisk/sounds/dbn/zh`。
-
-- repo 內**不含任何音檔**；`sounds/zh/` 只是決策層的 clip key 命名空間。
-- 提示音共 19 支，8 kHz／mono／16-bit、檔名 ASCII；檔名清單的單一真相是
-  `scripts/check_sounds.py` 的 `EXPECTED`，每支的內容與觸發時機見 `docs/glossary.md` §9。
-- 部署、格式驗證與上傳到 `/var/lib/asterisk/sounds/dbn/zh/` 的程序見 `README.md`
-  「部署主線」第 6 步與「音檔」章。
-  少了 `dbn/` 這一層，`Playback` 會全無聲且沒有明顯報錯。
-
-### 7.2 隱私：預設不念姓名
-
-`disclose_names=False`（預設）下：不念名字（澄清一律「請說全名」）、不確認存在
-（回覆與「這個人存不存在」無關，避免變成 oracle）、不列舉數量、不念分機。
-`Decision.label` 仍保留姓名，但只給 log 用，不進 `speech`。
-
-理由：電話簿是「撥得到就能查」的服務，只要開口念名字就等於提供列舉介面——
-換 20 個姓氏就能蒐集全公司名單。**按鍵只用來選「部門／總機」，永遠不用來盲選人**：
-來電者若分得出是哪一位就不需要澄清；分不出來，更不可能知道 1 和 2 各是誰。
-
-`disclose_names=True` 的分支需要額外的固定句（`q-is-it`／`q-or`／`q-question`／
-`transferring-name`）與逐人名音檔（`name-{pid}-{hash8}.wav`＋manifest）。
-**本 repo 未實作這四支固定句，也沒有 `agi_server.py` 旗標**；那是內線專用部署的工作，
-不在這裡的範圍。
-
----
-
-## 8. 合成測資的界線
-
-342 題是**對照表模擬**的 STT 同音錯誤，不是錄音，也不是準確率。它的用途只有一個：
-**規則改壞時會掉下來**。
-
-- 指標分佈會隨名冊與權重變動，不能當設計依據。
-- 真實 STT 的錯誤型態是**整詞替換**，不是合成測資模擬的逐字同音替換；
-  真實 WER 要用自己的錄音與 `eval.py --calls` 量。
-- 亂句、稱謂、只講姓／只講名這些「決策層」案例由 L1 劇本釘住，不靠 L0。
+重開＝照重建程序重新接回委派分支並**全部重新評估**（payload 契約、門檻、成本、個資面四項
+一併歸零，不得沿用舊結論）；最小必要條件與私有 archive 的指向見契約 §3 與
+[`AGENTS.md`](../AGENTS.md)。

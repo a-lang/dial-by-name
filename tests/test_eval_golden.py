@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """L0：342 題合成測資對 golden 的回歸測試。
 
-三層斷言（見 `docs/design.md` §回歸三層）：
+三層斷言（見 `docs/evaluation.md#regression`）：
   1. 16 項指標 dict 與 `tests/golden/eval_summary.json` 完全相等；
   2. 決策層逐題 hash 與 `tests/golden/eval_rows_sha256.txt` 相等（不符 fail）；
   3. 分數層逐題 hash 與 `tests/golden/eval_scores_sha256.txt` 相等（不符 warning）。

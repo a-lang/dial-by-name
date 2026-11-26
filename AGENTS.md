@@ -1,7 +1,8 @@
 # AGENTS.md — dial-by-name（語音撥號）
 
 > 給**接手執行的 agent** 的入門脈絡：結構、契約、地雷；細節在 §2 指到的文件。
-> 產品說明在 `README.md`；設計與理由在 `docs/design.md`；版本變更在 `CHANGELOG.md`。
+> 產品說明在 `README.md`；設計與理由在 `docs/decision-logic.md`；變更紀錄在 `CHANGELOG.md`；
+> 開發指令在 `CONTRIBUTING.md`。
 
 ## 1. 這是什麼
 
@@ -19,14 +20,21 @@ FreePBX／Asterisk 的「說姓名 → 轉分機」參考實作（Python）。�
 
 | 想知道 | 讀 |
 |---|---|
-| 為什麼這樣設計、指標怎麼算、門檻為何是這些值 | `docs/design.md` |
-| 產品定位、部署主線（quickstart）、服務維運、架構、量測 | `README.md` |
+| 為什麼這樣判斷：不變式、十條順序、門檻理由、外部模型重開條件 | `docs/decision-logic.md` |
+| 怎麼運作：分層、兩相 AGI、session／TTL、名冊雙入口、隱私模型 | `docs/architecture.md` |
+| 怎麼裝：先期條件、部署樹、10 步主線 | `docs/deploy.md` |
+| 上線後維運：啟停、health、人員異動、故障演練 | `docs/operations.md` |
 | 欄位、列舉值、常數 | `docs/glossary.md` |
-| I/O 對映與 Decision → PBX | `docs/io-mapping.md` |
-| dialplan 片段、`DBN_*` 變數、失敗分派、按鍵語意、貼上與冒煙；部署主線在 README | `docs/dialplan.md` |
+| AGI 契約：五階段、`start`／`result`、Decision → PBX、JSONL | `docs/agi-protocol.md` |
+| dialplan 片段、`DBN_*` 變數、失敗分派、按鍵語意、貼上與冒煙 | `docs/dialplan.md` |
+| 19 支台詞、音檔格式與命名、`disclose_names` 缺口 | `docs/sounds.md` |
+| 指標、效能、已知限制、golden 紀律 | `docs/evaluation.md` |
 | 20 通劇本協議與判定 | `docs/calls.md` |
+| 開發環境、測試、eval、hook、文件同步 | `CONTRIBUTING.md` |
+| 產品定位與首屏地圖、部署與維運入口 | `README.md` |
 | 下一步 | `ROADMAP.md` |
-| 這個公開版的來源 | `docs/provenance.md` |
+
+每個主題只有一個家；跨檔只指向、不複製。
 
 ## 3. 結構與契約
 
@@ -44,7 +52,16 @@ eval.py               342 題指標 + 門檻掃描（argparse；--transcripts/--
 trace.py              單句除錯 CLI（有 argparse）
 demo.py               9 個通話狀態展示
 stt_batch.py          STT 冒煙測試／離線重播（keyterms A/B）
+CONTRIBUTING.md       開發環境、測試、eval、hook、文件同步紀律
+docs/architecture.md  四層、兩相 AGI、session／TTL、名冊雙入口、隱私模型
+docs/decision-logic.md 不變式、十條決策順序、評分與門檻理由、alias 政策
+docs/deploy.md        先期條件、部署樹、10 步主線、更新、音檔 `scp`
+docs/operations.md    啟停與 health、人員異動、STT key 失效演練、systemd
 docs/dialplan.md      dialplan 片段、`DBN_*` 變數、電話層失敗分派
+docs/agi-protocol.md  五階段、`start`／`result` 參數、Decision → PBX、JSONL
+docs/glossary.md      型別、列舉、常數字典
+docs/sounds.md        19 支台詞、音檔格式與命名、`clip_hash`／manifest、`disclose_names` 缺口
+docs/evaluation.md    指標、效能、eval 輸出、已知限制、golden 紀律
 docs/calls.md         20 通劇本的撥號協議與人工判定（表格由 `scripts/calls.py table` 產生）
 assets/cover.html     專案封面圖（四層 × 五階段；中／英各一版 cover.html、cover-en.html）
 scripts/check_sounds.py 檢查 19 個提示音（檔名 ASCII、8k/mono/16-bit）
@@ -66,35 +83,29 @@ out/                  eval／通話日誌產物（gitignored）
 1. `eval.py` / `trace.py` / `demo.py` / `agi_server.py` / `stt_batch.py` **只能** import `dialname`
    套件內的模組（`core`、`decision`、`stt_client`、`agi`）；不得自行實作正規化、繁簡轉換、
    同音分群、評分、門檻或決策。要加能力就加到 core。
-2. `decide()` 的判斷順序**不可調換**（`docs/design.md` §2 有十條順序與理由；`no-intent` 插在最前面）。
+2. `decide()` 的判斷順序**不可調換**（`docs/decision-logic.md#order` 有十條順序與理由；`no-intent` 插在最前面）。
 3. **決策層零外部模型存取**：`decide()` 沒有委派參數，`dialname/` 內沒有任何通往外部 API 的路徑。
    `scripts/jev_probe.py scan` 是重開訊號的看護者——(d) 分支（`ambiguous-ask:*`）於全部現有語料
    可達率 **0**（合成 342 題、L1 劇本 20＋6 輪）。此為**結構性證據**（由現行規則定義，
    規則／門檻／名冊變更後須重跑 scan）。**重開條件**（任一即重議，改前在 `CHANGELOG.md` 記錄）：
    ① scan 於真實通話語料掃出 L4；② 正式階段 30 通真實評測出現低分多候選案例；
-   ③ 規則變更使 scan 的 L4 脫離 0。重開＝照 `docs/design.md` §4.4 的重建程序做，
+   ③ 規則變更使 scan 的 L4 脫離 0。重開＝照 `docs/decision-logic.md` §6 的重建程序做，
    並全部重新評估（不是復活舊檔）。
 4. 部門路由鍵是 `dept_id`（ASCII）；中文顯示名只進 log／payload，不進檔名、dialplan、通道變數。
 
 ## 4. 環境與指令
 
-執行環境：Linux，Python 3.11，`uv` 管理虛擬環境。
+執行環境：Linux，Python 3.11，`uv` 管理虛擬環境（`.venv`）。**完整指令見
+[`CONTRIBUTING.md`](CONTRIBUTING.md)**：`uv sync`、`uv run python -m pytest -q`（不要用
+`uv run pytest`）、`uv run eval.py`、`uv run trace.py "小明"`、`uv run demo.py`、hook 安裝。
 
-```bash
-uv sync                 # 第一次或改過 pyproject 之後
-uv run eval.py
-uv run trace.py "小明"
-uv run demo.py
-uv run pytest -q
-```
+兩條 agent 必須知道的硬事實：
 
-| 事實 | 說明 |
-|---|---|
-| 套件管理 | `uv`（`uv.lock` 已存在，是依賴唯一來源）；不要用 pip 直接裝 |
-| **API key** | `ELEVENLABS_API_KEY`（＋ userman 模式的 `DBN_MYSQL_*`）由 shell 或**專案根目錄**的 `.env`（systemd `EnvironmentFile`）提供；權限 600、不入版控、不進 rsync 樹，也不要寫進指令歷史；`.env` 不要加 `export` |
-| 若 key 沒設 | 停下來回報，不要改成假造回應繼續 |
-| 虛擬環境 | 用專案的 `.venv`；壞了直接 `rm -rf .venv && uv sync` 重建 |
-| 正式依賴共五個 | `pypinyin` / `rapidfuzz` / `opencc-python-reimplemented` / `httpx` / `pymysql`。評估中的新套件先放 `[dependency-groups]` dev，**轉正後移入 dependencies** |
+- **正式依賴共五個**：`pypinyin` / `rapidfuzz` / `opencc-python-reimplemented` / `httpx` / `pymysql`。
+  評估中的新套件先放 `[dependency-groups]` dev，**轉正後移入 dependencies**。
+- **API key**：`ELEVENLABS_API_KEY`（＋ userman 模式的 `DBN_MYSQL_*`）由 shell 或**專案根目錄**的
+  `.env` 提供；權限 600、不入版控、不隨部署傳輸、不寫進指令歷史；`.env` 不要加 `export`。
+  若 key 沒設就停下來回報，不要改成假造回應繼續。
 
 ## 5. 地雷（都是踩過的）
 
@@ -116,7 +127,7 @@ uv run pytest -q
 
 ## 6. 目前狀態
 
-- `uv run pytest -q`：**241 passed**
+- `uv run python -m pytest -q`：**241 passed**
 - `eval.py`：342 題全綠 — `silent_wrong 0.000`、`recall3_hard 1.000`、`homophone_dept_top1 1.000`、
   `clarify_hard 0.990`、`clarify_easy 0.230`、`garbage_* 0/0`、`no_requery 1.000`、`third_ask 0.000`
 - 關鍵常數：`WEIGHTS` char .20 / partial .16 / sur .30 / length .14 / given .10 / initials .10；
@@ -134,12 +145,12 @@ uv run pytest -q
 ## 7. 工作鐵則
 
 - 改 `core.py` 的評分／門檻／順序前**先問**；改完必須跑 `eval.py` 並確認輸出可解釋。
-- 改 `dialname/`、`eval.py`、`data/people.json` 後必跑 `uv run pytest -q`，綠了才 commit
+- 改 `dialname/`、`eval.py`、`data/people.json` 後必跑 `uv run python -m pytest -q`，綠了才 commit
   （pre-commit hook 會擋：staged 含這些路徑時先跑 L0／L1，非零即拒絕；`--no-verify` 要在
   `CHANGELOG.md` 記原因）。
 - **不要**為了讓測試過而放寬門檻；先確認是規則錯還是測資錯。
 - **不要把 key 寫進程式碼或版控**；本機 shell 或 PBX 的 `.env`（systemd `EnvironmentFile`）可以，
   檔案權限 600、不入版控。
-- 文件與程式要同步：改行為就改 `README`／`docs/design.md`，並在 `CHANGELOG.md` 記一筆。
-- **文件指令引用的每個路徑／檔案，必須由更早的步驟產生或明確標注前提；不得憑空出現**。
+- 文件與程式要同步：改行為就改 `README`／`docs/decision-logic.md`，並在 `CHANGELOG.md` 記一筆。
+- 文件指令引用的每個路徑／檔案，必須由更早的步驟產生或明確標注前提；不得憑空出現。
 - 交付時附上**實際執行輸出**（不是「應該會過」）。

@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """`scripts/calls.py update`：刻意變更時把 L1 的 expect 搬到新行為。
 
-規格見 `docs/design.md` §回歸三層（update 重寫 expect 並列 diff）與
-`docs/design.md` §刻意變更政策。範圍只含 18 通 auto＋3 個 `l1_only`；台詞（turns）、truth、
+規格見 `docs/evaluation.md#regression`（update 重寫 expect 並列 diff）與
+刻意變更政策（同節）。範圍只含 18 通 auto＋3 個 `l1_only`；台詞（turns）、truth、
 kind、mode 一律不動，manual 案例（truth 為 null）不跑。
 
 全部用假 STT（`run_case` 內建 `FakeStt`），不打網路。測試只在 tmp 檔上寫入；

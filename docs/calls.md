@@ -1,15 +1,23 @@
 # 20 通撥號劇本：協議與判準
 
-> 角色：本檔是「20 通劇本協議與判準（合成冊場次）」的唯一來源；跨檔只指向、不複製。
+本檔是 20 通撥號劇本的協議與判準：怎麼撥、怎麼判、哪些情況不算失敗。
 
 > 機器判定在 `data/call_script.json`（單一來源）；**人**照著撥、照著判。
 > 表格由 `uv run scripts/calls.py table` 產生，`tests/test_call_script.py::test_calls_md_table_in_sync`
 > 會斷言它與 JSON 一致。
-> 電話層安裝與手動驗收：`docs/dialplan.md` §4。
+
+## 目錄
+
+- [§1 回歸三層](#1-回歸三層)
+- [§2 20 通表格](#2-20-通表格)
+- [§3 通過判準](#3-通過判準)
+- [§4 truth.csv](#4-truthcsv14-筆)
+- [§5 未涵蓋清單](#5-未涵蓋清單)
+- [§6 執行順序](#6-執行順序)
 
 ## 1. 回歸三層
 
-回歸測試分三層（設計理由見 `docs/design.md` §回歸三層）：
+回歸測試分三層（L0 的警語與 golden 紀律見 [`evaluation.md#regression`](evaluation.md#regression)）：
 
 | 層 | 跑什麼 | 何時跑 |
 |---|---|---|
@@ -23,7 +31,7 @@
 `mode: auto` 的 18 通由機器判定（`calls.py check`）；`mode: manual` 的 2 通
 （#19 沉默、#20 按 0）只看人工行為，不計入自動通過率。
 
-## 2. 20 通表格（勿手改）
+## 2. 20 通表格
 
 | # | id | kind | mode | 第一輪 | 第二輪 | 最後一輪預期 | 備註 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -70,8 +78,8 @@
 3. **`stt_status`**：只存在 JSONL（`out/calls/*.jsonl`）。非 `ok` 時**先看是不是重試路徑**
    （`stt-empty`／`stt-error`／`timeout`／`401`），不要拿它去解釋決策漂移。
 
-決策漂移一律算失敗。電話層落點（`fallback` 轉總機、401／403 落總機）見 `docs/dialplan.md` §3.9 與
-`docs/io-mapping.md` §3。
+決策漂移一律算失敗。電話層落點（`fallback` 轉總機、401／403 落總機）見 [`dialplan.md`](dialplan.md) §3.9 與
+[`agi-protocol.md#errors`](agi-protocol.md#errors) 的錯誤分類。
 
 ### 3.2 STT 崩壞（可操作定義）
 
@@ -134,7 +142,7 @@
 
 不收的 6 通：
 
-- **#11–14（alias）**：屬 alias 政策驗收（`docs/dialplan.md` §4.2），不是評測資料。
+- **#11–14（alias）**：屬 alias 政策驗收（[`decision-logic.md#alias`](decision-logic.md#alias)），不是評測資料。
   #12–13（小美）第一輪兩個候選同為 0.95，`expect_pid` 填單一人在 `top1` 會隨排序翻面，
   製造假的 `silent_wrong`；#11（唯一命中）／#14（下限）同理只作驗收證據。
 - **#19–20（manual）**：沒有逐字稿，`eval.py --calls` 本來就跳過（只挑有 `stt.text` 的輪次）。
@@ -143,12 +151,12 @@
 
 ## 5. 未涵蓋清單
 
-電話層的 16 項驗收（beep、各階段按 0、AGI 掛掉、`Dial` 失敗…）仍以 `docs/dialplan.md` §4.1 手動勾選。
+電話層的 16 項驗收（beep、各階段按 0、AGI 掛掉、`Dial` 失敗…）不屬本檔；現行電話層限制見 [`dialplan.md#limits`](dialplan.md#limits)。
 以下是**決策層劇本測不到**的部分：
 
 | 項目 | 為什麼 20 通沒覆蓋 |
 |---|---|
-| 401／403 | key 失效走 `fallback` → 總機（`docs/io-mapping.md` §3）；20 通都在 key 正常下撥。操作測試另行（`.env` 註解 key），判準見 `docs/dialplan.md` §4.2。 |
+| 401／403 | key 失效走 `fallback` → 總機（[`agi-protocol.md#errors`](agi-protocol.md#errors)）；20 通都在 key 正常下撥。操作測試另行（`.env` 註解 key），`auth`／`ws` 分類見同一節。 |
 | `Dial` 失敗 | 分機不存在／忙線 → 轉總機。對 queue 目的地**不會觸發**（queue 立刻應答，`DIALSTATUS=ANSWER`），必須實撥才知道。 |
 | `RECORD_STATUS=ERROR` | 錄音本身失敗，吃掉同一份 `DBN_TRIES` 預算；20 通假設錄音成功。除錯先看 JSONL 的 `wav_duration_ms` 是否 `null`。 |
 | 英文 alias | 名冊有 `David Wang`／`Amy Chen`／`Kevin` 等英文 alias；20 通只驗中文 alias（阿明／小美／筱美／小米）與中文姓名，英文 STT 拼法與大小寫未驗。 |
@@ -170,7 +178,7 @@
 
    > 場次目錄就是定案做法（沿用既有 `AGI_LOGS`，不新增 `DBN_LOG`、不改 `agi.py`）；
    > 檔名仍是 `YYYYMMDD.jsonl`，`compare` 對目錄會依檔名排序合併（跨午夜散兩檔也對齊）。
-   > 正式模式＝手動 `scripts/agi.sh`；選用 systemd（見 README「服務管理與開機自啟」）時
+   > 正式模式＝手動 `scripts/agi.sh`；選用 systemd（見 [`operations.md#systemd`](operations.md#systemd)）時
    > 把 `--logs` 指到同一個場次目錄。
 
 2. **照 §2 撥 20 通**（順序 1→20）：兩輪案例等追問再念第二輪；#19 兩次不出聲；#20 錄音中按 0。
@@ -179,7 +187,7 @@
 3. **拉回本機的場次日誌**（只拉日誌目錄；wav 不拉）：
 
    ```bash
-   rsync -av asterisk@my-ipbx2025:/var/lib/asterisk/dial-by-name/out/calls/test-YYYYMMDD/ out/calls/test-YYYYMMDD/
+   scp -r asterisk@my-ipbx2025:/var/lib/asterisk/dial-by-name/out/calls/test-YYYYMMDD out/calls/
    ```
 
    > **錄音檔即時刪除（隱私政策）**：`result` 與 TTL sweeper 在服務內就刪掉兩支 wav，
@@ -210,4 +218,4 @@
    uv run eval.py --calls out/calls/test-YYYYMMDD --truth recordings/truth.csv --out-suffix _calls
    ```
 
-每次實撥的結果與漂移說明，記進 `CHANGELOG.md` 的 Unreleased 段落（或你自己的評測紀錄）。
+每次實撥的結果與漂移說明，記進 `CHANGELOG.md` 的當日段落（或你自己的評測紀錄）。

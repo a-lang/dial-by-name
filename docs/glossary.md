@@ -1,10 +1,8 @@
-# 欄位與列舉值字典（Glossary）
+# 欄位、列舉與常數
 
-> 角色：本檔是「名詞、欄位、列舉值、常數」的唯一來源；跨檔只指向、不複製。
+本檔定義型別、欄位、列舉值與常數現值。
 
 每個結構的每個欄位、每個列舉字串代表什麼。**列舉值以程式碼為準，不要憑印象加值。**
-
----
 
 ## 1. `Person` — 名冊上的一個人
 
@@ -34,8 +32,6 @@
 | `fuzzy_variants` | 上者套用模糊音規則後的版本（`zh→z`、`ing→in`…） |
 | `initials` | 聲母序列，例如 `王偉` → `"w w"` |
 
----
-
 ## 2. `Department` — 部門與它的路由鍵
 
 | 欄位 | 意義 | 範例 |
@@ -45,9 +41,8 @@
 | `aliases` | 會被剝除／匹配的講法（中英混合） | `["業務","Sales","銷售"]` |
 
 `aliases` 是**部門的講法**，不是人的綽號；人的綽號在 `Person.aliases`。兩者常被搞混。
-電話拓樸（queue／ringgroup 號碼）**不在這裡**，由 `docs/dialplan.md` 的 `dept_id → queue` 對映負責。
-
----
+電話拓樸（queue／ringgroup 號碼）**不在這裡**，由 [`dialplan.md`](dialplan.md) 的
+`dept_id → queue` 對映負責。
 
 ## 3. `Candidate` — 一個候選人
 
@@ -55,9 +50,7 @@
 |---|---|
 | `person` | 指向 `Person` |
 | `score` | 0–1 的綜合分數（見 §4） |
-| `reasons` | 為什麼它被加分，列出字串（見 §6） |
-
----
+| `reasons` | 為什麼它被加分，列出字串（見 §7） |
 
 ## 4. `score` 的語意分級
 
@@ -95,19 +88,17 @@
 - 完全沒有漢字重疊時，拼音只給半權重（`PINYIN_EVIDENCE_NO_CHAR = 0.5`）
 - 單字查詢 cap **0.62**、兩字 vs 三字名 cap **0.88**
 
----
-
 ## 5. `Decision` — 一個可執行的決定
 
 | 欄位 | 型別 | 意義 |
 |---|---|---|
 | `action` | enum | 要做什麼（見 §5.1） |
 | `target` | str \| None | 去哪裡：`route` 是分機號；`route_dept` 是 `dept_id`（例 `sales`）；`ask` / `fallback` / `hangup` 為 None |
-| `label` | str \| None | 目標名稱（姓名或部門名）。**只給 log 用，不會被播報**（見 README §8 隱私） |
+| `label` | str \| None | 目標名稱（姓名或部門名）。**只給 log 用，不會被播報**（見 [`architecture.md#privacy`](architecture.md#privacy)） |
 | `reason` | str | 為什麼做這個決定（見 §6） |
 | `speech` | str[] | 要依序播放的音檔路徑；空陣列 = 不說話直接轉 |
 | `confidence` | float \| None | 採用時的信心值（= 該候選的本地分數） |
-| `options` | `[(按鍵, 目的地, 名稱)]` | `ask` 時可按的鍵。**只放系統已知的語意（部門／總機），不放人**。PoC 電話層不消費；按 0 由 `Record(...,o)`（錄音期）與澄清句的 `Background`（播放期）實作，一律轉總機 |
+| `options` | `[(按鍵, 目的地, 名稱)]` | `ask` 時可按的鍵。**只放系統已知的語意（部門／總機），不放人**。電話層不消費；按 0 由 `Record(...,o)`（錄音期）與澄清句的 `Background`（播放期）實作，一律轉總機 |
 
 ### 5.1 `action` 的五個值
 
@@ -119,7 +110,8 @@
 | `fallback` | 轉總機（已表達找人意圖但收斂不了） | None |
 | `hangup` | 播 `speech`（`goodbye`）→ 掛線（無意圖／無回應） | None |
 
----
+（`DBN_ACTION` 另有第六個傳輸層值 `retry`，不在 `Decision.action` 裡，見
+[`agi-protocol.md`](agi-protocol.md) §8。）
 
 ## 6. `reason` 全枚舉（決策的「為什麼」）
 
@@ -142,8 +134,6 @@
 | `homophone-unresolvable` | 候選 ≥2、**同部門且彼此同音／近音** → 問部門無鑑別力、問全名也敵不過 STT 同音錯誤，直接 fallback（第 1 輪就放棄）。**例外**：`is_given_name_query()` 成立（只講名）→ 改問全名 | `fallback` |
 | `clarify-exhausted` | 已問過一輪（`attempt` 2）候選仍 ≥2 → 不再問第三次，也不再轉部門 queue | `fallback` |
 
----
-
 ## 7. `Candidate.reasons` 的標記
 
 | 值 | 意義 |
@@ -152,8 +142,6 @@
 | `title:<職稱>` | 查詢字串包含該人職稱（+0.04） |
 | `exact-name` | 查詢包含完整姓名（≥0.97） |
 | `name-prefix` | 查詢是姓名的前綴（0.55 + 0.4×長度比） |
-
----
 
 ## 8. `needs_clarification()` 的 `why`
 
@@ -165,250 +153,24 @@
 | `homophone-sibling` | ① 第二名 ≥ 門檻且**與第一名同音/近音**，或 ② **同姓＋名同音不同字**（不看分數） | `HOMOPHONE_FLOOR`（唯一定義在 `core`，**0.70**）／`same_surname_homophone()`。**判斷在 `low-score` 之前**，所以低分查詢也會被檢查 |
 | `confident` | 以上皆非 → 可以直接轉 | — |
 
----
+## 9. 音檔命名
 
-## 9. 音檔命名（`speech` 裡的每個元素）
+19 支台詞（念什麼、何時播）、8 kHz／mono／16-bit 格式、ASCII 檔名，以及
+`disclose_names=True` 的 `name-<pid>-<hash8>.wav`／`manifest.json` 命名與 hash，見
+[`sounds.md`](sounds.md)。
 
-> **預設不會用到帶雜湊的檔名。** 只有 `disclose_names=True` 的部署才會產生
-> `name-*` 音檔與 `manifest.json`；預設（`disclose_names=False`）只有 19 個固定／部門音檔
-> （`q-dept-who` 待錄，2026-11-19 加入）：
-> `welcome`、`processing`、`retry`、`q-say-full-name`、`q-which-dept`、`q-operator`、
-> `transferring`、`to-operator`、`not-found`、`goodbye`、`dept-<dept_id>`、`q-dept-who`。
-> **檔名與數量以 `scripts/check_sounds.py` 的 `EXPECTED` 為準**（11 支固定＋8 支
-> `dept-<dept_id>`＝19）；本節負責每支的**內容**（念什麼、何時播）與 `disclose_names=True`
-> 分支。
->
-> **分支現況**（`disclose_names=True` 需要的四支固定句未實作、`agi_server.py` 沒有旗標）見
-> [`docs/design.md`](design.md) §7.2 與 [`README.md`](../README.md) 的「音檔」章。
+## 10. 測資 `kind`
 
-| 路徑 | 內容 |
-|---|---|
-| `sounds/zh/welcome` | 「您好，請說出您要找的部門或姓名」 |
-| `sounds/zh/processing` | 「請稍候」（STT 等待期） |
-| `sounds/zh/q-say-full-name` | **預設的澄清句**：「請說全名」——不確認、不列舉、不洩漏 |
-| `sounds/zh/q-which-dept` | 「請問是哪個部門？」（候選跨部門、來電者沒提部門時） |
-| `sounds/zh/q-dept-who` | 「請問您要找哪一位？」（`dept-scoped-ask` 的第 2 段，緊接在 `dept-<dept_id>` 之後；**待錄**） |
-| `sounds/zh/q-operator` | 「或按零，由專人為您服務」（只在 `ask` 後播） |
-| `sounds/zh/q-is-it` | 「請問是」（僅 `disclose_names=True`） |
-| `sounds/zh/q-or` | 「，還是」（僅 `disclose_names=True`） |
-| `sounds/zh/q-question` | 「？」（僅 `disclose_names=True`） |
-| `sounds/zh/retry` | 「請問您找哪一位？」 |
-| `sounds/zh/transferring` | 「為您轉接」（預設，不帶名字） |
-| `sounds/zh/transferring-name` | 「為您轉接」+ 人名（僅 `disclose_names=True`） |
-| `sounds/zh/to-operator` | 「正在為您轉接總機」 |
-| `sounds/zh/not-found` | 「不好意思，無法確認您要找的對象」（所有 `fallback` 轉總機前；服務故障不播） |
-| `sounds/zh/goodbye` | 「謝謝您的來電」（任何掛線前播放） |
-| `sounds/zh/dept-<dept_id>` | 部門名（`dept-sales`）；部門名不算個資 |
-| `sounds/zh/name-<pid>-<hash8>.wav` | 「姓名，部門」，由 `decision.name_clip()` 產生（僅 `disclose_names=True`；預設部署不生成任何這類檔案） |
+`eval.py` 的 13 種測資類型（`exact-sc`／`homophone-dept-sc`／`garbage`…）見
+[`evaluation.md`](evaluation.md)。
 
-### 9.1 人名音檔的命名與雜湊
+## 11. `eval.py` 的輸出
 
-命名 = **`name-{pid}-{hash8}.wav`**（僅 `disclose_names=True`），
-例：`sounds/zh/name-u001-ce33556e.wav`。
+輸出（`out/eval_rows.json` 的 12 欄、`out/eval_summary.json` 的指標、門檻掃描、失敗清單）見
+[`evaluation.md`](evaluation.md)。
 
-| 部分 | 來源 | 作用 |
-|---|---|---|
-| `pid` | 名冊的 `Person.pid` | 給人看：log／SIP trace／稽核一眼知道是誰 |
-| `hash8` | `decision.clip_hash()` | 失效判斷：姓名或部門一改就換檔 |
-
-**雜湊的完整定義**（`decision` 的常數：`CLIP_HASH_ALGO` / `CLIP_HASH_FIELDS` / `CLIP_HASH_LEN`）：
-
-```
-hash8 = sha1( pid + "|" + name + "|" + dept ) 的 hexdigest 前 8 碼
-        編碼固定 UTF-8；name／dept 用名冊 JSON 的原字串（繁體、不經拼音或簡化）
-```
-
-`u001` / `王偉` / `業務部` → 輸入字串 `u001|王偉|業務部` → `ce33556e`。
-
-三種算法必須得到同一個值（可用來驗收或手工補檔）：
-
-```bash
-printf 'u001|王偉|業務部' | sha1sum | cut -c1-8          # ce33556e
-```
-
-```bash
-printf 'u001|王偉|業務部' | openssl dgst -sha1 | awk '{print substr($NF,1,8)}'
-```
-
-```python
-from dialname.core import load_directory
-from dialname.decision import clip_hash
-clip_hash(load_directory("data/people.json").people[0])   # 'ce33556e'
-```
-
-設計取捨（改命名前先看這兩條）：
-
-- **不放姓名、也不放拼音**：`ls sounds/zh/` 若能直接讀出名單，就等於把全公司姓名
-  印出來，與 §8 的列舉風險同一件事。
-- **不含 voice／版本**：換聲音庫時檔名不變、直接覆蓋，AGI 端不做快取所以不需要失效；
-  代價是「重生成」不能靠改檔名區分，要靠 manifest 的 `generated_at`。
-
-### 9.2 `manifest.json`（`decision.name_manifest()`）
-
-`hash` 不可逆，所以建索引時要同時寫 `sounds/zh/manifest.json`：
-檔名 → `pid` / `name` / `dept` / `extension` / `text`（實際念出的字串）/ `voice_id` / `generated_at`，
-外加 `hash` 區塊（`algorithm` / `input` / `encoding` / `truncate`）讓檔案自己能解釋算法。
-
-| 要回答什麼 | 看 manifest 的哪一欄 |
-|---|---|
-| 這個檔是誰的 | `clips[<檔名>].name` / `.pid` |
-| 誰還沒生成 | `generated_at` 為 `null` |
-| 某人的姓名被合成成哪些檔 | 反查 `clips` 中 `pid` 相符者 |
-| 演算法是什麼 | 頂層 `hash` |
-
-**manifest 內含姓名 → 敏感資產**：與 wav 同權限、**不進版控**（`.gitignore` 已排除 `sounds/zh/manifest.json` 與 `sounds/zh/name-*.wav`）、不對外 serve。
-
----
-
-## 10. `eval.py` 的 `kind`（測資類型）
-
-**除 `english` 外，全部以簡體送出**（模擬真實 STT 的輸出字形，經 OpenCC `t2s` 轉換）。
-`-sc` 後綴就是這個意思。
-
-| `kind` | 測什麼 |
-|---|---|
-| `exact-sc` | 簡體全名（**主要情境**） |
-| `exact-tc` | 繁體全名（對照組：少數引擎輸出繁體／人工輸入） |
-| `homophone-sc` | 同音字替換 + 簡體（最真實的錯誤組合） |
-| `homophone-dept-sc` | 同音字替換 + **報了部門**（部門是封閉詞彙，應該足以解掉同音歧義 → top-1 必須對） |
-| `drop-char-sc` | 漏中間一個字 + 簡體 |
-| `surname-only-sc` | 只講姓 + 稱謂 |
-| `given-name-only-sc` | 只講名字 |
-| `dept-only-sc` | 只講部門 |
-| `dept+surname-sc` | 部門 + 姓 + 稱謂 |
-| `english` | 英文別名（ASCII，不受簡繁影響） |
-| `filler-sc` | 前後加贅詞（「麻烦」是簡體，用來測 S2T） |
-| `garbage` | **完全不是要找人的句子**（訂便當、問地址、談業務合作…）→ 正確行為是「零候選」 |
-| `nickname-trap` | 日常稱謂（王伯伯／陳董）→ 命中同姓算可接受，但**必須進澄清** |
-
----
-
-## 11. `eval.py` 的輸出（四份東西）
-
-`eval.py` 產出「一份檔案 + 三段 stdout」。四者刻意分開：檔案給程式比對，stdout 給人看。
-
-```
-out/eval_rows.json    342 筆逐列結果（12 欄）
-out/eval_summary.json n + 11 個彙總指標
-stdout ①              cases / 11 指標（= summary 的內容）
-stdout ②              門檻掃描表（5 個 floor）
-stdout ③              失敗案例清單（top3 全落空的）
-```
-
-`out/` 已在 `.gitignore`（每次跑都變）。要留證據就貼進 issue／PR，不要進版控。
-
-### 11.1 `out/eval_rows.json`：12 欄
-
-| # | 欄位 | 型別 | 怎麼算 | 沒有值的時候 |
-|---|---|---|---|---|
-| 1 | `query` | str | 實際送進 `Directory.search()` 的字串（簡體） | — |
-| 2 | `kind` | str | 測資類型（13 種，見 §10） | — |
-| 3 | `top1` | str \| null | 第一名候選的 `pid` | 無候選 → `null` |
-| 4 | `top1_name` | str \| null | 該人的顯示名（繁） | 無候選 → `null` |
-| 5 | `top1_score` | float | 該人的分數 | 無候選 → `0.0` |
-| 6 | `margin` | float | `top1 − top2`（前二名差距） | 候選 < 2 → `1.0`（不是 0） |
-| 7 | `hit1` | bool | `top1 ∈ expect` | `expect` 為空（dept-only）→ `false` |
-| 8 | `hit3` | bool | 前三名任一 `∈ expect` | 同上 → `false` |
-| 9 | `dept_ok` | bool \| null | 偵測到的部門 == `dept_expect` | 只有 `dept-only-sc` 有值，其餘 `null` |
-| 10 | `flagged` | bool \| null | `needs_clarification()` 的結果（要不要追問） | `dept-only-sc` → `null`（沒有澄清問題） |
-| 11 | `why` | str | 為什麼要／不要澄清（§8）或 `dept-only` | — |
-| 12 | `hit1_or_any` | bool | 「有沒有抓到任何一個人」（`top1 != null`） | 只用來判 `garbage`：亂句不該有候選 |
-
-**`expect` 是「可接受的 pid 集合」**，不是單一答案：同音題（`homophone-sc`）允許落在同音群裡的任何一個。
-
-四種代表性列（實際輸出）：
-
-```json
-{ "query": "王伟",     "kind": "exact-sc",      "top1": "u001", "top1_score": 1.0,
-  "margin": 0.153, "hit1": true,  "hit3": true,  "dept_ok": null,
-  "flagged": true,  "why": "homophone-sibling" }
-
-{ "query": "汪伟",     "kind": "homophone-sc",  "top1": "u002", "top1_score": 1.0,
-  "margin": 0.153, "hit1": true,  "hit3": true,  "dept_ok": null,
-  "flagged": true,  "why": "homophone-sibling" }
-
-{ "query": "王先生",   "kind": "surname-only-sc","top1": "u001", "top1_score": 0.62,
-  "margin": 0.0,   "hit1": true,  "hit3": true,  "dept_ok": null,
-  "flagged": true,  "why": "low-score" }
-
-{ "query": "帮我接业务", "kind": "dept-only-sc",  "top1": null,   "top1_score": 0.0,
-  "margin": 1.0,   "hit1": false, "hit3": false, "dept_ok": true,
-  "flagged": null, "why": "dept-only" }
-```
-
-判讀兩個眉角：
-
-- **`margin: 0.0` + `hit1: true`** 是正常的（「王先生」兩個王同分，`expect` 含兩個）。
-- **`flagged: true` 配 `hit1: true`** 也是正常的（字面命中，但名冊裡有同音兄弟 → 還是要問）。
-
-### 11.2 `out/eval_summary.json`：`n` + 16 個指標
-
-| 指標 | 計算式 | 目前值 | 判讀方向 |
-|---|---|---|---|
-| `n` | 測資總數 | **342** | — |
-| `silent_wrong_rate` | 沒被標記澄清 **且** `hit1` 為 false 的比例（排除 `dept-only-sc`） | **0.000** | **最重要**：這是「安靜地轉錯人」的機率，必須趨近 0 |
-| `top1_easy_sc` | `{exact-sc, drop-char-sc, english, filler-sc}` 的 `hit1` 平均 | **1.000** | 越高越好；掉下來代表比對層退步 |
-| `top1_easy_tc` | `{exact-tc}` 的 `hit1` 平均 | **1.000** | 繁體對照組，應與 `top1_easy_sc` 一致 |
-| `sc_vs_tc_gap` | `exact-sc` 的 `hit1` − `exact-tc` 的 `hit1` | **0.000** | ≠ 0 代表簡繁正規化出問題 |
-| `recall3_hard` | `HARD_KINDS`（同音／只講姓／只講名／部門+姓）的 `hit3` | **1.000** | 疑難題「正確的人在不在前三名」 |
-| `top1_homophone` | `{homophone-sc}` 的 `hit1` | **0.778** | **不該追求 1.0**：同音題本來就該靠澄清，這裡只確認沒有系統性偏好 |
-| `homophone_dept_top1` | `{homophone-dept-sc}` 的 `hit1` | **1.000** | 同音＋報部門時 top-1 應該正確；掉下來代表「部門線索沒被用來解歧義」（`DEPT_SCOPE_MIN` 或部門加權壞了） |
-| `dept_acc` | `{dept-only-sc}` 的 `dept_ok` | **1.000** | 只講部門時有沒有轉對 |
-| `clarify_rate_hard` | `HARD_KINDS` 被標記澄清的比例 | **0.993** | 越接近 1 越安全（該問的都有問） |
-| `clarify_rate_easy` | `STRICT_KINDS`（`exact-sc, exact-tc, english, filler-sc`）被標記澄清的比例 | **0.230** | 使用者體驗成本；**多數是名冊裡真的有同音兄弟，不是誤報** |
-| `garbage_false_match` | `{garbage}` 中 `hit1_or_any` 為 true 的比例 | **0.000** | **亂句硬抓到人** —— 比同音字選錯嚴重，必須 0 |
-| `nickname_trap_clarify` | `{nickname-trap}` 被標記澄清的比例 | **1.000** | 「王伯伯」這種稱謂要問，不能直接轉 |
-| `no_requery_rate` | 跑決策層後，`{surname-only-sc, nickname-trap, drop-char-sc}` 中 `action != ask` 的比例 | **1.000** | 只講姓／只有稱謂／漏字時**不該再追問**（走 `surname-only` / `incomplete-name` fallback 或直接轉） |
-| `third_ask_rate` | 第 1 輪追問的題目，在第 2 輪仍為 `ask` 的比例 | **0.000** | 兩輪為上限：第 2 輪仍歧義就 `clarify-exhausted` → fallback |
-| `garbage_false_route` | 跑決策層後，`{garbage}` 中 `action ∈ {route, route_dept}` 的比例 | **0.000** | **亂句被轉出去**（轉人或轉部門都算）—— 靠 `has_routing_cue()` 閘門擋住 |
-| `dept_route_recall` | `{dept-only-sc}` 中真的有轉到部門的比例 | **1.000** | 確認閘門沒把正常流量也擋掉 |
-
-`HARD_KINDS` / `STRICT_KINDS` 的定義在 `eval.py` 頂端（`HARD_KINDS`、`STRICT_KINDS` 常數），
-`drop-char-sc` 刻意**只算在 `EASY_KINDS`、不算在 `STRICT_KINDS`** —— 少一個字本來就有歧義。
-
-**判讀順序**：先看 `silent_wrong_rate`（安全），再看 `recall3_hard`（能力），
-最後才看 `clarify_rate_easy`（體驗）。前者不合格時，後者再漂亮都沒有意義。
-
-### 11.3 門檻掃描（stdout ②）
-
-固定掃 `homophone_floor ∈ {0.45, 0.55, 0.65, 0.75, 0.85}`，每列三欄：
-
-| 欄位 | 意義 |
-|---|---|
-| `silent_wrong` | 同 `silent_wrong_rate`（全體） |
-| `clarify_hard` | 疑難題被追問的比例（越高越安全） |
-| `clarify_easy` | 無歧義題被追問的比例（越低體驗越好） |
-
-目前（342 筆）：
-
-```
-  floor | silent_wrong | clarify_hard | clarify_easy
-   0.45 |        0.000 |        0.993 | 0.230
-   0.55 |        0.000 |        0.993 | 0.230
-   0.65 |        0.000 |        0.993 | 0.230
-   0.75 |        0.000 |        0.993 | 0.230
-   0.85 |        0.012 |        0.949 | 0.097
-```
-
-**選法**：找 `silent_wrong` 還維持 0 的最小 `clarify_easy` → 落在 **0.65–0.75**。
-`decide()` 實用值是 **0.70**，定義在 `core.HOMOPHONE_FLOOR`（`needs_clarification()` 與
-`decide()` 共用同一個常數，沒有第二份數字）。
-
-### 11.4 失敗案例清單（stdout ③）
-
-條件：`kind ∈ HARD_KINDS ∪ {exact-sc, exact-tc}` **且** `hit3 == false`。
-輸出格式：
-
-```
-  [kind] 'query' -> top1_name (top1_score)
-```
-
-**印不出東西是好事**（目前就是空的）—— 代表疑難題與全名題的前三名都沒有落空。
-一旦有內容，就是最該先看的 regression：它比 `top1` 掉分更嚴重（正確答案連前三名都進不去）。
-
----
-
-## 12. 常數一覽（要調參時從這張表下手）
+<a id="constants"></a>
+## 12. 常數一覽
 
 | 常數 | 值 | 位置 | 作用 |
 |---|---|---|---|
@@ -430,3 +192,54 @@ stdout ③              失敗案例清單（top3 全落空的）
 | `attempt` | 1→2 | decision | 最多問兩輪；第 2 輪仍歧義 → `clarify-exhausted` → **fallback**（不轉部門 queue） |
 | `ROUTING_CUES` | 找／接／轉／分機／窗口／聯絡／聯繫／打給 | core | 部門路由的意圖閘門：沒有這些詞就只接受「整句只有部門名」 |
 | `dept_residual` | `search()` 的第三個回傳值 | decision | 傳 `""` 且 `dept` 存在＝整句只有部門名；**呼叫端必須傳**，漏傳會讓「只講部門」被 `no-intent` 誤掛線 |
+
+<a id="abbreviations"></a>
+## 13. 縮寫與產品名
+
+實際出現的縮寫與專有名詞；高頻者（STT、AGI）在第一次出現時展開，其餘查這裡。
+
+| 縮寫 | 全稱 | 中文 | 一句說明 |
+|---|---|---|---|
+| AGI | Asterisk Gateway Interface | Asterisk 閘道介面 | Asterisk 呼叫外部服務的協議；本專案的 FastAGI 服務 |
+| AGPL | GNU Affero General Public License | GNU Affero 通用公共授權 | 本專案的授權條款 |
+| API | Application Programming Interface | 應用程式介面 | 例如 ElevenLabs API |
+| ASCII | American Standard Code for Information Interchange | 美國資訊交換標準碼 | 檔名與通道變數只允許 ASCII |
+| CER | Character Error Rate | 字元錯誤率 | 以字元計算的 STT 錯誤率；`stt_batch.py` 用這個 |
+| CI | Continuous Integration | 持續整合 | 本 repo 沒有 CI，以 pre-commit 代替 |
+| CLI | Command-Line Interface | 命令列介面 | `eval.py`／`trace.py` 等 |
+| CSV | Comma-Separated Values | 逗號分隔值 | `truth.csv` |
+| DB | Database | 資料庫 | FreePBX 的 MySQL／MariaDB；本專案唯讀 |
+| DTMF | Dual-Tone Multi-Frequency | 電話按鍵音 | 按 0 轉總機 |
+| EOF | End of File | 檔案／串流結束 | WAV tail 與 WS 收尾 |
+| GUI | Graphical User Interface | 圖形介面 | FreePBX Admin |
+| HTTP | Hypertext Transfer Protocol | 超文本傳輸協定 | WS 握手與 API |
+| ISO | International Organization for Standardization | 國際標準化組織 | ISO 8601 時間格式 |
+| IVR | Interactive Voice Response | 互動式語音應答 | 本專案的整體形態 |
+| JSON | JavaScript Object Notation | JavaScript 物件表示法 | 結構化資料格式 |
+| JSONL | JSON Lines | 一行一筆 JSON | `out/calls/*.jsonl` |
+| LDAP | Lightweight Directory Access Protocol | 輕量目錄存取協定 | 企業目錄整合；本專案只讀 userman 名冊 |
+| MIT | MIT License | MIT 授權 | 部分依賴的授權 |
+| NFKC | Normalization Form KC | Unicode 相容正規化 | `normalize()` 的第一步 |
+| PBX | Private Branch Exchange | 企業電話交換機 | FreePBX／Asterisk 提供的分機系統 |
+| PCM | Pulse-Code Modulation | 脈衝編碼調變 | Realtime STT 的線性音訊串流 |
+| PID | Process ID | 行程識別碼 | `out/agi.pid` |
+| SIGHUP | Signal Hangup | 掛斷訊號 | 本專案用來原子重載名冊 |
+| SSH | Secure Shell | 安全遠端登入 | 登入 PBX |
+| STT | Speech-to-Text | 語音轉文字 | 本專案唯一的第三方服務（ElevenLabs） |
+| TTL | Time To Live | 存活時間 | session 20 秒清理窗口 |
+| TTS | Text-to-Speech | 文字轉語音 | 離線產生提示音；不在通話路徑 |
+| VAD | Voice Activity Detection | 語音活動偵測 | 分辨沉默與有說話 |
+| WAV | Waveform Audio File Format | 波形音訊檔格式 | `Record()` 的錄音；WAV tail 送 STT |
+| WER | Word Error Rate | 詞錯誤率 | 以詞計算的 STT 錯誤率；中文斷詞有歧義 |
+| WS | WebSocket | 全雙工連線 | Realtime STT 傳輸 |
+| WSS | WebSocket Secure | 加密 WebSocket | 對外 443 到 ElevenLabs |
+
+產品與專有名詞：
+
+| 名稱 | 全稱 | 說明 |
+|---|---|---|
+| FreePBX | FreePBX | Asterisk 的網頁管理介面；本專案用它管 userman 名冊 |
+| Asterisk | Asterisk | 電話引擎；dialplan 與 AGI 的執行環境 |
+| ElevenLabs | ElevenLabs | STT 服務供應商（Scribe v2／Realtime） |
+| userman | User Manager | FreePBX 的使用者目錄；本專案只讀 |
+| FastAGI | FastAGI | AGI 的 TCP 協定實作；`agi_server.py` |

@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """L1：劇本決策層回歸（20 通撥號劇本＋3 個 `l1_only` 案例）。
 
-資料單一來源是 `data/call_script.json`（`docs/design.md` §回歸三層）。
+資料單一來源是 `data/call_script.json`（`docs/evaluation.md#regression`）。
 人工撥號協議與通過判準見 `docs/calls.md`；電話層驗收、重試與掛線的
-分工見 `docs/dialplan.md` §4（§3.9 說明 `retry` 與 `DBN_TRIES` 掛線）。
+分工見 `docs/dialplan.md` §5（§3.9 說明 `retry` 與 `DBN_TRIES` 掛線）。
 
 每個 `auto` 案例照真實順序呼叫 `handle_turn`：第二輪把上一輪回傳的 `cands`
 原樣餵回 `prev_pids`，測真實的候選 carry，不寫死候選。斷言只比最後一輪的

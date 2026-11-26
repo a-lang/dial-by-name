@@ -8,6 +8,12 @@ out/
 # API key（使用者本地提供，絕不進版控）
 .env
 
+# 正式名冊與音檔（含真名／再散布限制；repo 只留範本）
+data/aliases.json
+sounds/zh/*.wav
+sounds/zh/manifest.json
+recordings/
+
 # 本地 agent skill（圖表產生，與專案功能無關）
 .agents/
 

@@ -3,7 +3,7 @@
 
 契約（與 `core.load_directory` 相同）：產生的 `Person` / `Department` / `Directory` 形狀
 完全一致，下游（`name_match_keys()`、`alias-ask`、`alias-not-found`）不知道資料從哪來。
-所以切換與回滾都只是換入口（`docs/design.md` §名冊來源）。
+所以切換與回滾都只是換入口（`docs/decision-logic.md#alias`）。
 
 資料來源：
   userman_users  JOIN userman_directories（`auth` 是整數 FK）

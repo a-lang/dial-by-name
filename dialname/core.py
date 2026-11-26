@@ -364,7 +364,7 @@ def query_features(query: str) -> tuple[list[list[str]], list[str]]:
 
 
 # 六項加權：改權重只改這裡，name_score() 與 trace 的拆解都吃同一份
-# 優先序（取捨理由見 `docs/design.md` §評分）：**姓的同音 > 字數 > 名的同音**
+# 優先序（取捨理由見 `docs/decision-logic.md#scoring`）：**姓的同音 > 字數 > 名的同音**
 #   sur 0.30 > length 0.14 > given 0.10
 # 中文姓是封閉集合（幾百個），同音的姓（王/汪、張/章）幾乎等於同一個人；
 # 名字較發散，同音只能當輔助。字數居中，因為 2 字 vs 3 字幾乎一定是不同人。

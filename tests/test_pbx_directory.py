@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""`dialname/pbx_directory.py` 與 SIGHUP 重載的閘門（`docs/design.md` §名冊來源）。
+"""`dialname/pbx_directory.py` 與 SIGHUP 重載的閘門（`docs/decision-logic.md#alias`）。
 
 閘門 1：`load_aliases()` 驗證表格 8 列全覆蓋，錯誤含全部孤兒。
 閘門 2：`load_from_pbx()` 產生的 `Person` 與 JSON 版逐欄位相同。

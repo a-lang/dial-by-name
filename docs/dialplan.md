@@ -1,12 +1,20 @@
 # Dialplan：AGI 只做 STT＋決策，其餘交給 FreePBX
 
-> 角色：本檔是「dialplan 片段、`DBN_*` 通道變數與電話層失敗分派」的唯一來源；部署主線（clone、目錄、`.env`、音檔、服務啟停）在 `README.md`，跨檔只指向、不複製。
+本檔提供 `extensions_custom.conf` 的片段、`DBN_*` 通道變數與電話層失敗分派。
 
 > 這份片段由使用者**手動**貼進 `/etc/asterisk/extensions_custom.conf`，agent 不遠端改 PBX。
 > 規則：`;` 之後可以是中文註解，**其餘一律 ASCII**（`tests/test_dialplan_ascii.py` 會驗）。
 
-> 章節編號沿用舊版：§1（部署）與 §4（PoC 驗收清單）已移除、§3.5／§3.6 已搬 README；不重排是為了讓全 repo 既有指針仍有效。
+> 章節編號沿用舊版：§1（部署）與 §4（PoC 驗收清單）已移除、§3.5／§3.6 已搬
+> [`operations.md`](operations.md)；不重排是為了讓全 repo 既有指針仍有效。
 
+## 目錄
+
+- [§2 片段](#snippet)
+- [§3 套用（GUI 接入）](#apply)
+- [§5 已知限制（電話層語意）](#limits)
+
+<a id="snippet"></a>
 ## 2. 片段
 
 收音期間的旁路只有三行（`start` AGI／`MixMonitor(,r(...))`／無條件 `StopMixMonitor`），
@@ -157,11 +165,12 @@ exten => s,1,Set(DBN_IDX=1)
  same => n(done),Return()
 ```
 
+<a id="apply"></a>
 ## 3. 套用（GUI 接入）
 
-> **順序**：貼上（§3.1）後、撥號前，先照 `README.md`「服務管理與開機自啟」啟動 FastAGI、跑完 §3.8 冒煙。
+> **順序**：貼上（§3.1）後、撥號前，先照 [`operations.md`](operations.md) 啟動 FastAGI、跑完 §3.8 冒煙。
 > AGI 沒起來時撥號會走 `AGISTATUS` 安全網轉總機，很容易誤判成 dialplan 寫錯。
-> 服務啟動、cwd、權限與人員異動見 `README.md`「服務管理與開機自啟」。
+> 服務啟動、cwd、權限與人員異動見 [`operations.md`](operations.md)。
 
 ### 3.1 貼上 dialplan
 
@@ -208,11 +217,11 @@ sudo asterisk -rx 'dialplan show dbn-main@dbn-main'   # 應看到 s,1 Answer()
 
 ### 3.8 第一通之前的 AGI 冒煙（不必撥號）
 
-**先確認服務活著**：照 `README.md`「服務管理與開機自啟」啟動；`scripts/agi.sh status` 的
+**先確認服務活著**：照 [`operations.md`](operations.md) 啟動；`scripts/agi.sh status` 的
 PID／4573／sweeper heartbeat 都要 OK（sweeper DEAD 會回非零），`ss -ltnp | grep 4573`
 應看到 listener，`out/agi.log` 有 `FastAGI listening on 127.0.0.1:4573`。
 
-**STT 對外通不通**（key 有效、外網可達、模型可呼叫；音檔位置見 README「部署主線」第 6 步）：
+**STT 對外通不通**（key 有效、外網可達、模型可呼叫；音檔位置見 [`deploy.md#sounds`](deploy.md#sounds)）：
 
 ```bash
 uv run stt_batch.py --audio /var/lib/asterisk/sounds/dbn/zh/welcome.wav
@@ -259,7 +268,7 @@ frames，再看 VAD partial，最後才是文字。**決定何時掛線的仍然
 | `retry` 第二次（`DBN_TRIES` > 1） | `hangup` | — | — | `goodbye` → 掛斷 | **dialplan** |
 | AGI 沒回應／超過 25 秒 | （無） | — | — | 總機 | dialplan（`AGISTATUS`） |
 
-**`auth` 與 `ws` 的判別**：記法以 `docs/io-mapping.md` §3 的「STT 失敗的 auth 映射」為唯一來源
+**`auth` 與 `ws` 的判別**：記法以 [`agi-protocol.md#errors`](agi-protocol.md#errors) 的「STT 錯誤分類」為唯一來源
 （`stream.error`／`stream.detail` 與 2026-11-25 裁定）；行為面兩者一律
 `fallback` → 總機。
 
@@ -289,6 +298,7 @@ STT 回 200 但聽成亂句**不算失效**：走正常決策，多半落在 `no
 （OPERATOR／HANGUP／ERROR／閘滿 stub）由 sweeper 在 TTL（20 秒）到期時刪。
 兩條路徑都只刪 session 登記的兩檔，JSONL 的 `wav` 檔名保留（join key）。
 
+<a id="limits"></a>
 ## 5. 已知限制（電話層語意）
 
 - **收音期沒有 barge-in**：旁路只監聽，來電者仍不能在提示音期間打斷。

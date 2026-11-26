@@ -3,7 +3,7 @@
 
 比對層（core）把拼音空間收斂成少數候選；這裡只決定「這一輪該轉、該問、還是該收手」。
 **全本地、無外部模型存取**：2026-11-21 起外部模型委派機制整個移除（理由與重開條件見
-`docs/design.md` §外部模型）。
+`docs/decision-logic.md` §6（外部模型））。
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ def clip_hash(p: Person) -> str:
     """內容指紋：sha1(pid|name|dept) 前 8 個 hex。
 
     刻意**不含** voice／版本：換聲音庫時檔名不變，AGI 端不需要快取失效處理，
-    重生成就覆蓋同一個檔（見 README §7）。姓名或部門一改，hash 就變 → 換檔，
+    重生成就覆蓋同一個檔（見 `docs/sounds.md#name-clips`）。姓名或部門一改，hash 就變 → 換檔，
     不會播到舊部門。
     """
     raw = "|".join((p.pid, p.name, p.dept_name or p.dept))
@@ -88,7 +88,7 @@ def name_manifest(people: list[Person], voice_id: str | None = None) -> dict:
 
     存在的理由：hash 不可逆，沒有這份表就無法回答「這個檔是誰的」「誰還沒生成」
     「某人的姓名被合成成哪些檔」。**含姓名，屬敏感資產**：與 wav 同權限、
-    不進版控、不對外 serve（見 README §7）。
+    不進版控、不對外 serve（見 `docs/architecture.md#privacy`）。
 
     `algorithm` / `fields` / `truncate` 也寫進檔案，讓 manifest 自己能解釋
     雜湊怎麼算出來的（換人接手不必回頭讀程式碼）。

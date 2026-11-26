@@ -1,12 +1,28 @@
 # Changelog
 
-本專案的格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
-版本號遵循 [Semantic Versioning](https://semver.org/lang/zh-TW/)。
+本檔記錄對使用者可見的變更：改了什麼、為什麼、對指標的影響。
+本專案目前**不發佈版本號**，以日期（`YYYY-MM-DD`）分組；同一日的變更合併在一節。
+類型沿用 Added／Changed／Removed／Fixed／Security；格式參考
+[Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，但不採 Semantic Versioning。
 
-變更行為（決策、門檻、名冊）時必須在這裡記一筆：**改了什麼、為什麼、對指標的影響**。
-純內部重構不必逐條列出。
+純內部重構不必逐條列出；變更行為（決策、門檻、名冊）仍必須寫**改了什麼、為什麼、對指標的影響**。
 
-## [Unreleased]
+## 2026-11-26
+
+### Changed
+
+- 文件資訊架構重寫：README 首屏改為決策導向，docs 重整為 10 份單一職責文件（`deploy`／`operations`／
+  `architecture`／`decision-logic`／`agi-protocol`／`sounds`／`evaluation` 等）與 `CONTRIBUTING.md`；
+  `AGENTS.md` 只留 agent 契約與地圖。部署主線只走 `git clone`，不進版控的資產（音檔、`.env`、
+  `aliases.json`）以 `scp` 傳輸或在主機上建立。`CHANGELOG.md` 改為日期分組、不再推進版本號。
+  不改程式行為，342 題指標與 20 通劇本不變。
+
+### Security
+
+- `.gitignore` 補上 `data/aliases.json`、`sounds/zh/*.wav`、`sounds/zh/manifest.json`、`recordings/`
+  ——正式名冊與音檔含真名／再散布限制，repo 只留範本。
+
+## 2026-11-25
 
 ### Added
 
@@ -49,7 +65,9 @@
   `_strip_fillers` 剝掉「呃」便停在 `.`，`NOISE_PREFIXES`／稱謂／姓氏前綴全部失效，
   姓名檢索 0 候選（部門偵測是子字串掃描，不受影響）。342 題指標與 20 通劇本不變。
 
-## [0.1.0] — 2026-11-24
+## 2026-11-24（首次公開）
+
+> 當時標記為 `0.1.0`；此後不再推進版本號。
 
 首次公開。這個版本是從內部 PoC 抽取的（來源與範圍見 `docs/provenance.md`），
 功能面與 PoC 結案時一致，差別在文件重建與去識別。

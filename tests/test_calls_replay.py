@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """`scripts/calls.py replay`（L2）：wav → 假 STT → handle_turn 的兩層判定。
 
-規格見 `docs/design.md` §回歸三層：決策層＝新決策 vs `expect`；
+規格見 `docs/evaluation.md#regression`：決策層＝新決策 vs `expect`；
 STT 層＝新逐字稿 vs 劇本台詞（先過 `core.normalize`），同音／近音標「STT 變體」
 並分類成人名同音／動詞殘骸／漏部門／贅詞。429 要退避重試、仍失敗記 stt-error
 且不中斷整場；沒有 key 直接停下，不造假逐字稿。
