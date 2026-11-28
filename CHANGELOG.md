@@ -7,6 +7,15 @@
 
 純內部重構不必逐條列出；變更行為（決策、門檻、名冊）仍必須寫**改了什麼、為什麼、對指標的影響**。
 
+## 2026-11-28
+
+### Removed
+
+- 語音測試網頁（web voice）相關實作已拆出為獨立專案 `sip-web-phone`（定位 Web SIP Phone）：
+  `web_voice/`、`DESIGN.md`、`tests/test_web_voice.py`（48 題）與 `.plan/` 三份計畫／交接文件
+  一併移出；G1/G2/G3 開發紀錄詳見新 repo 的 CHANGELOG。本 repo 回到不含 web voice 的
+  241 passed 基線；`dialname/`／AGI／dialplan／`core.py` 與既有憑證均未改動。
+
 ## 2026-11-26
 
 ### Changed
